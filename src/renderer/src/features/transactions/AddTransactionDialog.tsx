@@ -8,6 +8,7 @@ import type { Account, Category } from '../../../../shared/ipc'
 import { formatAmount, formatMinor, parseAmountToMinor } from '../../../../shared/money'
 import { baseCurrency } from '../../../../shared/presets'
 import { FormDialog } from '../../components/FormDialog'
+import { PieChart } from '../../components/PieChart'
 import { errorMessage, today } from '../../lib/useQuery'
 
 interface Props {
@@ -60,7 +61,16 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
       if (kind === 'income' && !proposal && account.currency === baseCurrency) {
         const proposed = await window.api.budgets.propose(amountMinor)
         if (proposed.length > 0) {
-          setProposal(proposed.map((p) => ({ ...p, text: formatAmount(p.amountMinor) })))
+          // Every category is listed, prefilled where a rule proposed an amount. Percentage
+          // budgets follow the planned income, so income is not added to them.
+          setProposal(
+            categories
+              .filter((c) => !c.isPercent)
+              .map(({ id, name }) => {
+                const minor = proposed.find((p) => p.categoryId === id)?.amountMinor
+                return { categoryId: id, name, text: minor ? formatAmount(minor) : '' }
+              })
+          )
           return
         }
       }
@@ -93,6 +103,7 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
   }
 
   if (proposal && account && amountMinor) {
+    const allocatedMinor = (allocations ?? []).reduce((sum, a) => sum + (a.amountMinor ?? 0), 0)
     return (
       <FormDialog
         title="Allocate this income"
@@ -102,10 +113,28 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
         onClose={onClose}
       >
         <Text>
-          Your income rules suggest dividing {formatMinor(amountMinor, account.currency)} like this.
-          Change any amount, or clear it to skip that category. The amounts are added to this
-          month&apos;s budgets.
+          Divide {formatMinor(amountMinor, account.currency)} across your budgets. Amounts from your
+          income rules are filled in; change any amount, or clear it to skip that category. Each
+          amount is added to its category&apos;s budget for this month or week.
         </Text>
+        <PieChart
+          title="Split"
+          currency={account.currency}
+          emptyText="Nothing allocated yet."
+          slices={[
+            ...proposal.map((p, i) => ({
+              label: p.name,
+              minor: allocations?.[i].amountMinor ?? 0
+            })),
+            { label: 'Unallocated', minor: amountMinor - allocatedMinor, isNeutral: true }
+          ]}
+        />
+        {allocatedMinor > amountMinor && (
+          <Text type="supporting">
+            The split is {formatMinor(allocatedMinor - amountMinor, account.currency)} more than the
+            income.
+          </Text>
+        )}
         {proposal.map((p, index) => (
           <TextInput
             key={p.categoryId}

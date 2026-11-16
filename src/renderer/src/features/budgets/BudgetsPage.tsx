@@ -1,21 +1,30 @@
 import { useCallback, useState } from 'react'
 import { Button } from '@astryxdesign/core/Button'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
+import { Grid } from '@astryxdesign/core/Grid'
 import { Icon } from '@astryxdesign/core/Icon'
 import { IconButton } from '@astryxdesign/core/IconButton'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
-import { HStack } from '@astryxdesign/core/Stack'
+import { HStack, VStack } from '@astryxdesign/core/Stack'
 import { Table, pixel, type TableColumn } from '@astryxdesign/core/Table'
 import { Text } from '@astryxdesign/core/Text'
 import { budgetPeriodSchema, type Budget, type Rule } from '../../../../shared/ipc'
 import { formatAmount, formatMinor } from '../../../../shared/money'
+import { baseCurrency } from '../../../../shared/presets'
 import { Amount } from '../../components/Amount'
 import { DeleteButton } from '../../components/DeleteButton'
 import { Page } from '../../components/Page'
+import { PieChart } from '../../components/PieChart'
 import { Section } from '../../components/Section'
 import { moneyWidth, nameWidth } from '../../lib/table'
 import { today, useQuery } from '../../lib/useQuery'
-import { AddCategoryDialog, AddRuleDialog, SetBudgetDialog } from './BudgetDialogs'
+import {
+  AddCategoryDialog,
+  AddRuleDialog,
+  PlanIncomeDialog,
+  SetBudgetDialog
+} from './BudgetDialogs'
+import { DueDates } from './DueDates'
 
 type Row = Budget['rows'][number]
 
@@ -31,7 +40,10 @@ export function BudgetsPage(): React.JSX.Element {
   )
   const [categories, reloadCategories] = useQuery(window.api.categories.list)
   const [rules, reloadRules] = useQuery(window.api.rules.list)
-  const [dialog, setDialog] = useState<'category' | 'rule' | Row>()
+  const [accounts] = useQuery(window.api.accounts.list)
+  const [dialog, setDialog] = useState<'category' | 'rule' | 'plan' | Row>()
+  // Bills are in the base currency, so they are paid from base-currency asset accounts.
+  const payAccounts = accounts?.filter((a) => a.type === 'asset' && a.currency === baseCurrency)
 
   const reload = (): void => {
     setDialog(undefined)
@@ -43,6 +55,7 @@ export function BudgetsPage(): React.JSX.Element {
     <Button label="Add category" variant="primary" onClick={() => setDialog('category')} />
   )
   const isMonthly = period === 'monthly'
+  const budgetedMinor = budget?.rows.reduce((sum, r) => sum + r.budgetedMinor, 0) ?? 0
   const amount = (pick: (row: Row) => number, header: string): TableColumn<Row> => ({
     key: header,
     header,
@@ -52,7 +65,20 @@ export function BudgetsPage(): React.JSX.Element {
   })
 
   const columns: TableColumn<Row>[] = [
-    { key: 'name', header: 'Category', width: nameWidth },
+    {
+      key: 'name',
+      header: 'Category',
+      width: nameWidth,
+      renderCell: (row) => (
+        <VStack gap={0.5}>
+          <Text>{row.name}</Text>
+          <Text type="supporting">
+            {row.cadence === 'weekly' ? 'Weekly' : 'Monthly'}
+            {row.percentBp ? ` · ${formatAmount(row.percentBp)}% of income` : ''}
+          </Text>
+        </VStack>
+      )
+    },
     amount((r) => r.budgetedMinor, 'Budgeted'),
     ...(isMonthly ? [amount((r) => r.carriedMinor, 'Rolled over')] : []),
     amount((r) => r.spentMinor, 'Spent'),
@@ -64,11 +90,9 @@ export function BudgetsPage(): React.JSX.Element {
       width: pixel(190),
       renderCell: (row) => (
         <HStack gap={1} hAlign="end" vAlign="center">
-          {isMonthly && (
-            <Button label={`Set budget for ${row.name}`} size="sm" onClick={() => setDialog(row)}>
-              Set budget
-            </Button>
-          )}
+          <Button label={`Set budget for ${row.name}`} size="sm" onClick={() => setDialog(row)}>
+            Set budget
+          </Button>
           <DeleteButton
             label={`Delete category ${row.name}`}
             title={`Delete ${row.name}?`}
@@ -111,7 +135,17 @@ export function BudgetsPage(): React.JSX.Element {
   ]
 
   return (
-    <Page title="Budgets" action={categories?.length ? addCategory : undefined}>
+    <Page
+      title="Budgets"
+      action={
+        categories?.length ? (
+          <HStack gap={2}>
+            <Button label="Plan income" onClick={() => setDialog('plan')} />
+            {addCategory}
+          </HStack>
+        ) : undefined
+      }
+    >
       {categories?.length === 0 && (
         <EmptyState
           title="No categories yet"
@@ -153,16 +187,48 @@ export function BudgetsPage(): React.JSX.Element {
               />
             </HStack>
           </HStack>
-          <Table data={budget.rows} columns={columns} idKey="categoryId" hasHover />
-          {!isMonthly && (
-            <Text type="supporting">
-              A week shows its share of each month&apos;s budget, split by days. Set budgets in the
-              monthly view.
+          {budget.incomeMinor !== null && (
+            <Text hasTabularNumbers>
+              Expected income {formatMinor(budget.incomeMinor, budget.currency)}
+              {budget.income && budget.income.cadence !== period
+                ? ` (from ${formatMinor(budget.income.amountMinor, budget.currency)} a ${budget.income.cadence === 'monthly' ? 'month' : 'week'})`
+                : ''}{' '}
+              · Budgeted {formatMinor(budgetedMinor, budget.currency)} · Not budgeted{' '}
+              {formatMinor(budget.incomeMinor - budgetedMinor, budget.currency)}
             </Text>
+          )}
+          <Grid columns={{ minWidth: 320, max: 2 }} gap={6}>
+            <PieChart
+              title="Budgeted"
+              currency={budget.currency}
+              emptyText="No budgets set for this period yet."
+              slices={budget.rows.map((r) => ({ label: r.name, minor: r.budgetedMinor }))}
+            />
+            <PieChart
+              title="Spent"
+              currency={budget.currency}
+              emptyText="No spending in this period yet."
+              slices={budget.rows.map((r) => ({ label: r.name, minor: r.spentMinor }))}
+            />
+          </Grid>
+          <Table data={budget.rows} columns={columns} idKey="categoryId" hasHover />
+          <Text type="supporting">
+            {isMonthly
+              ? 'Weekly categories show their weekly budget for the days of this month.'
+              : "Monthly categories show this week's share of the month's budget, split by days."}
+          </Text>
+          {settings && payAccounts && (
+            <DueDates
+              date={budget.start}
+              weekStart={settings.weekStart}
+              categories={categories}
+              accounts={payAccounts}
+              onPaid={reloadBudget}
+            />
           )}
           <Section
             title="Income rules"
-            description="When you record income, these rules propose how to divide it across your budgets, in this order. You confirm or edit the split before it is saved."
+            description="When you plan or record income, these rules propose how to divide it across your budgets, in this order. You confirm or edit the split before it is saved."
             action={<Button label="Add rule" onClick={() => setDialog('rule')} />}
           >
             {!!rules?.length && <Table data={rules} columns={ruleColumns} idKey="id" />}
@@ -179,10 +245,18 @@ export function BudgetsPage(): React.JSX.Element {
           onSaved={reload}
         />
       )}
+      {dialog === 'plan' && budget && (
+        <PlanIncomeDialog
+          budget={budget}
+          hasRules={!!rules?.length}
+          onClose={() => setDialog(undefined)}
+          onSaved={reload}
+        />
+      )}
       {typeof dialog === 'object' && budget && (
         <SetBudgetDialog
           row={dialog}
-          month={budget.start}
+          date={budget.start}
           currency={budget.currency}
           onClose={() => setDialog(undefined)}
           onSaved={reload}

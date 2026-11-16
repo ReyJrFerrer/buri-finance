@@ -48,8 +48,9 @@ export function insertTransaction(db: Db, header: Header, splits: Split[]): stri
   return id
 }
 
-export function createTransaction(db: Db, input: NewTransaction): void {
-  db.transaction(() => {
+// Returns the new transaction's id.
+export function createTransaction(db: Db, input: NewTransaction): string {
+  return db.transaction(() => {
     if (input.kind === 'transfer') {
       const splits = transferSplits(
         getLedgerAccount(db, input.fromAccountId),
@@ -57,24 +58,27 @@ export function createTransaction(db: Db, input: NewTransaction): void {
         input.amountMinor,
         input.receivedMinor
       )
-      insertTransaction(db, { date: input.date, payee: 'Transfer', memo: input.memo }, splits)
-      return
+      return insertTransaction(
+        db,
+        { date: input.date, payee: 'Transfer', memo: input.memo },
+        splits
+      )
     }
     const account = getLedgerAccount(db, input.accountId)
     if (input.kind === 'expense') {
       const splits = expenseSplits(account, input.amountMinor).map((s) =>
         s.accountId === systemAccounts.expense ? { ...s, categoryId: input.categoryId } : s
       )
-      insertTransaction(db, input, splits)
-      return
+      return insertTransaction(db, input, splits)
     }
-    insertTransaction(db, input, incomeSplits(account, input.amountMinor))
+    const id = insertTransaction(db, input, incomeSplits(account, input.amountMinor))
     const allocated = input.allocations.reduce((sum, a) => sum + a.amountMinor, 0)
     if (allocated > input.amountMinor) throw new Error('Allocations exceed the income amount')
     if (allocated > 0 && account.currency !== baseCurrency) {
       throw new Error(`Only ${baseCurrency} income can be allocated to budgets`)
     }
     for (const a of input.allocations) addToBudget(db, a.categoryId, input.date, a.amountMinor)
+    return id
   })()
 }
 

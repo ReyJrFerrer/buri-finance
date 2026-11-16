@@ -44,6 +44,7 @@ test('accounts, transactions and net worth work end to end and survive a restart
     await page.evaluate(() => Object.keys((window as unknown as { api: object }).api).sort())
   ).toEqual([
     'accounts',
+    'bills',
     'budgets',
     'categories',
     'goals',

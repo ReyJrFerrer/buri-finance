@@ -111,7 +111,12 @@ export const netWorthSchema = z.object({
 })
 export type NetWorth = z.infer<typeof netWorthSchema>
 
-export const categorySchema = z.object({ id, name: z.string() })
+export const categorySchema = z.object({
+  id,
+  name: z.string(),
+  cadence: budgetPeriodSchema,
+  isPercent: z.boolean() // budgeted as a share of income, so income is not added to it
+})
 export type Category = z.infer<typeof categorySchema>
 
 export const budgetSchema = z.object({
@@ -122,10 +127,18 @@ export const budgetSchema = z.object({
   previous: isoDate,
   next: isoDate,
   currency,
+  // The planned income for this period, and the plan it comes from: an amount per month or per
+  // week that applies until changed. Null until income is planned.
+  incomeMinor: minor.nullable(),
+  income: z.object({ cadence: budgetPeriodSchema, amountMinor: minor }).nullable(),
   rows: z.array(
     z.object({
       categoryId: id,
       name: z.string(),
+      // How often this category is budgeted, and its amount for that month or week.
+      cadence: budgetPeriodSchema,
+      setMinor: minor,
+      percentBp: z.int().nullable(), // a share of income in basis points instead of an amount
       budgetedMinor: minor,
       carriedMinor: minor,
       spentMinor: minor,
@@ -135,6 +148,33 @@ export const budgetSchema = z.object({
   )
 })
 export type Budget = z.infer<typeof budgetSchema>
+
+const repeat = z.enum(['none', 'weekly', 'monthly'])
+export const newBillSchema = z.strictObject({
+  name,
+  amountMinor: positiveMinor,
+  categoryId: id,
+  dueDate: isoDate,
+  repeat
+})
+export const billsSchema = z.object({
+  start: isoDate,
+  end: isoDate,
+  currency,
+  // One entry per due date in the range; paid once an expense has been recorded for it.
+  dues: z.array(
+    z.object({
+      billId: id,
+      name: z.string(),
+      categoryName: z.string(),
+      amountMinor: minor,
+      dueDate: isoDate,
+      repeat,
+      paidTransactionId: id.nullable()
+    })
+  )
+})
+export type Bills = z.infer<typeof billsSchema>
 
 const ruleKind = z.enum(['percent', 'fixed'])
 export const ruleSchema = z.object({
@@ -251,10 +291,28 @@ export const ipcContract = {
   'budgets:set': {
     input: z.strictObject({
       categoryId: id,
-      month: isoDate,
+      date: isoDate,
       amountMinor: z.int().nonnegative(),
-      rollover: z.boolean()
+      percentBp: z.int().min(1).max(10_000).nullable(),
+      rollover: z.boolean(),
+      cadence: budgetPeriodSchema
     }),
+    output: z.null()
+  },
+  'budgets:plan': {
+    input: z.strictObject({
+      period: budgetPeriodSchema,
+      date: isoDate,
+      incomeMinor: z.int().nonnegative(),
+      allocations: z.array(z.strictObject({ categoryId: id, amountMinor: z.int().nonnegative() }))
+    }),
+    output: z.null()
+  },
+  'bills:list': { input: z.strictObject({ date: isoDate }), output: billsSchema },
+  'bills:create': { input: newBillSchema, output: z.null() },
+  'bills:delete': { input: z.strictObject({ id }), output: z.null() },
+  'bills:pay': {
+    input: z.strictObject({ billId: id, dueDate: isoDate, accountId: id, date: isoDate }),
     output: z.null()
   },
   'budgets:propose': {

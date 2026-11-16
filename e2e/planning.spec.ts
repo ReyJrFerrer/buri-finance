@@ -106,7 +106,7 @@ test('budgets, goals and investments work end to end', async () => {
   await expect(row(/Food/)).toContainText('PHP 0.00')
   await page.getByRole('button', { name: 'Previous period' }).click()
   await page.getByRole('radio', { name: 'Weekly' }).click()
-  await expect(page.getByText(/A week shows its share/)).toBeVisible()
+  await expect(page.getByText(/this week's share of the month's budget/)).toBeVisible()
   await expect(row(/Food/)).not.toContainText('PHP 10,000.00')
   await shot('9-budgets-weekly')
   await page.getByRole('radio', { name: 'Monthly' }).click()
@@ -180,5 +180,6 @@ test('budgets, goals and investments work end to end', async () => {
   await page.getByRole('combobox', { name: 'Week starts on' }).click()
   await page.getByRole('option', { name: 'Sunday' }).click()
   await expect(page.getByRole('combobox', { name: 'Week starts on' })).toContainText('Sunday')
+
   await app.close()
 })

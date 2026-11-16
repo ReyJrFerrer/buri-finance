@@ -6,9 +6,11 @@ import {
   getBudget,
   listCategories,
   listRules,
+  planIncome,
   propose,
   setBudget
 } from '../db/budgets'
+import { createBill, deleteBill, listBills, payBill } from '../db/bills'
 import type { Db } from '../db/connection'
 import { createGoal, deleteGoal, listGoals } from '../db/goals'
 import { getSettings } from '../db/settings'
@@ -24,6 +26,11 @@ export function registerBudgetIpc(db: Db): void {
     getBudget(db, period, date, getSettings(db).weekStart)
   )
   handle('budgets:set', (input) => (setBudget(db, input), null))
+  handle('budgets:plan', (plan) => (planIncome(db, plan), null))
+  handle('bills:list', ({ date }) => listBills(db, date))
+  handle('bills:create', (bill) => (createBill(db, bill), null))
+  handle('bills:delete', ({ id }) => (deleteBill(db, id), null))
+  handle('bills:pay', (payment) => (payBill(db, payment), null))
   handle('budgets:propose', ({ amountMinor }) => propose(db, amountMinor))
   handle('rules:list', () => listRules(db))
   handle('rules:create', (rule) => (createRule(db, rule), null))

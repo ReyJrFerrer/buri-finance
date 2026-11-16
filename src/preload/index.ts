@@ -28,7 +28,14 @@ const api = {
   budgets: {
     get: (input: IpcInput<'budgets:get'>) => invoke('budgets:get', input),
     set: (input: IpcInput<'budgets:set'>) => invoke('budgets:set', input),
-    propose: (amountMinor: number) => invoke('budgets:propose', { amountMinor })
+    propose: (amountMinor: number) => invoke('budgets:propose', { amountMinor }),
+    plan: (input: IpcInput<'budgets:plan'>) => invoke('budgets:plan', input)
+  },
+  bills: {
+    list: (date: string) => invoke('bills:list', { date }),
+    create: (input: IpcInput<'bills:create'>) => invoke('bills:create', input),
+    remove: (id: string) => invoke('bills:delete', { id }),
+    pay: (input: IpcInput<'bills:pay'>) => invoke('bills:pay', input)
   },
   rules: {
     list: () => invoke('rules:list'),
