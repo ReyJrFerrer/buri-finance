@@ -1,11 +1,13 @@
 import { baseCurrency } from '../../shared/presets'
 import type { NetWorth } from '../../shared/ipc'
+import { convertMinor } from './decimal'
 
 export const systemAccounts = {
   income: '00000000-0000-7000-8000-000000000001',
   expense: '00000000-0000-7000-8000-000000000002',
   opening: '00000000-0000-7000-8000-000000000003',
-  exchange: '00000000-0000-7000-8000-000000000004'
+  exchange: '00000000-0000-7000-8000-000000000004',
+  investments: '00000000-0000-7000-8000-000000000005'
 } as const
 
 export interface LedgerAccount {
@@ -18,6 +20,7 @@ export interface Split {
   accountId: string
   amountMinor: number
   currency: string
+  categoryId?: string | null
 }
 
 // Sign convention: positive raises an asset; negative raises a liability, income or equity.
@@ -108,27 +111,52 @@ export function transferSplits(
   ]
 }
 
-// Totals per currency, never converted: there is no stored FX rate to convert with yet.
-export function netWorth(
-  accounts: { type: string; currency: string; balanceMinor: number }[]
-): NetWorth {
-  const totals = new Map<string, NetWorth[number]>()
+export interface FxRate {
+  currency: string
+  rate: string
+  date: string
+}
+
+interface ValuedAccount {
+  type: string
+  currency: string
+  balanceMinor: number
+  holdingsMinor: number
+}
+
+// Totals per currency (cash plus holdings). The base-currency figure is a display value: it is
+// given only when every other currency has a stored rate, and it reports the rates it used.
+export function netWorth(accounts: ValuedAccount[], rates: FxRate[]): NetWorth {
+  const byCurrency = new Map<string, NetWorth['totals'][number]>()
   for (const a of accounts) {
-    const t = totals.get(a.currency) ?? {
+    const t = byCurrency.get(a.currency) ?? {
       currency: a.currency,
       assetsMinor: 0,
       liabilitiesMinor: 0,
       netMinor: 0
     }
-    if (a.type === 'asset') t.assetsMinor += a.balanceMinor
-    else t.liabilitiesMinor -= a.balanceMinor
-    t.netMinor += a.balanceMinor
-    totals.set(a.currency, t)
+    const value = a.balanceMinor + a.holdingsMinor
+    if (a.type === 'asset') t.assetsMinor += value
+    else t.liabilitiesMinor -= value
+    t.netMinor += value
+    byCurrency.set(a.currency, t)
   }
   const rank = (currency: string): number => (currency === baseCurrency ? 0 : 1)
-  return [...totals.values()].sort(
+  const totals = [...byCurrency.values()].sort(
     (a, b) => rank(a.currency) - rank(b.currency) || a.currency.localeCompare(b.currency)
   )
+
+  const foreign = totals.filter((t) => t.currency !== baseCurrency)
+  const used = foreign.map((t) => rates.find((r) => r.currency === t.currency))
+  if (foreign.length === 0 || used.some((r) => !r)) return { totals, converted: null }
+  const netMinor = totals.reduce((sum, t) => {
+    const rate = rates.find((r) => r.currency === t.currency)
+    return sum + (rate ? convertMinor(t.netMinor, rate.rate) : t.netMinor)
+  }, 0)
+  return {
+    totals,
+    converted: { currency: baseCurrency, netMinor, rates: used.filter((r) => r !== undefined) }
+  }
 }
 
 interface UserSplit {

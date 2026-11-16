@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Theme } from '@astryxdesign/core/theme'
 import { AppShell } from '@astryxdesign/core/AppShell'
-import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Icon } from '@astryxdesign/core/Icon'
 import { NavIcon } from '@astryxdesign/core/NavIcon'
 import { CommandPalette } from '@astryxdesign/core/CommandPalette'
@@ -21,6 +20,9 @@ import {
 import { themes, defaultThemeSlug } from '../../astryx-themes'
 import type { Settings } from '../../shared/ipc'
 import { AccountsPage } from './features/accounts/AccountsPage'
+import { BudgetsPage } from './features/budgets/BudgetsPage'
+import { GoalsPage } from './features/goals/GoalsPage'
+import { InvestmentsPage } from './features/investments/InvestmentsPage'
 import { OverviewPage } from './features/overview/OverviewPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { TransactionsPage } from './features/transactions/TransactionsPage'
@@ -74,16 +76,14 @@ function App(): React.JSX.Element {
         return <AccountsPage />
       case 'transactions':
         return <TransactionsPage onAddAccount={goToAccounts} />
+      case 'budgets':
+        return <BudgetsPage />
+      case 'goals':
+        return <GoalsPage />
+      case 'investments':
+        return <InvestmentsPage onAddAccount={goToAccounts} />
       case 'settings':
         return settings && <SettingsPage settings={settings} onChange={updateSettings} />
-      default:
-        return (
-          <EmptyState
-            title={pages[page].label}
-            description="This part of the app is not built yet."
-            headingLevel={1}
-          />
-        )
     }
   }
 

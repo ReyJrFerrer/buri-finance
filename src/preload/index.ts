@@ -19,7 +19,35 @@ const api = {
     create: (input: IpcInput<'transactions:create'>) => invoke('transactions:create', input),
     remove: (id: string) => invoke('transactions:delete', { id })
   },
-  netWorth: { get: () => invoke('networth:get') }
+  netWorth: { get: () => invoke('networth:get') },
+  categories: {
+    list: () => invoke('categories:list'),
+    create: (name: string) => invoke('categories:create', { name }),
+    remove: (id: string) => invoke('categories:delete', { id })
+  },
+  budgets: {
+    get: (input: IpcInput<'budgets:get'>) => invoke('budgets:get', input),
+    set: (input: IpcInput<'budgets:set'>) => invoke('budgets:set', input),
+    propose: (amountMinor: number) => invoke('budgets:propose', { amountMinor })
+  },
+  rules: {
+    list: () => invoke('rules:list'),
+    create: (input: IpcInput<'rules:create'>) => invoke('rules:create', input),
+    remove: (id: string) => invoke('rules:delete', { id })
+  },
+  goals: {
+    list: () => invoke('goals:list'),
+    create: (input: IpcInput<'goals:create'>) => invoke('goals:create', input),
+    remove: (id: string) => invoke('goals:delete', { id })
+  },
+  investments: {
+    get: () => invoke('investments:get'),
+    buy: (input: IpcInput<'investments:buy'>) => invoke('investments:buy', input),
+    sell: (input: IpcInput<'investments:sell'>) => invoke('investments:sell', input),
+    removeLot: (id: string) => invoke('investments:deleteLot', { id }),
+    setPrice: (input: IpcInput<'prices:set'>) => invoke('prices:set', input),
+    setFxRate: (input: IpcInput<'fx:set'>) => invoke('fx:set', input)
+  }
 }
 
 export type Api = typeof api

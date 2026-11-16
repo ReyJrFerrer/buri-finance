@@ -4,6 +4,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { loadOrCreateKey, openDatabase, type Db } from './db/connection'
 import { migrate, migrations } from './db/migrate'
+import { registerBudgetIpc } from './ipc/budgets'
+import { registerInvestmentIpc } from './ipc/investments'
 import { registerLedgerIpc } from './ipc/ledger'
 import { registerSettingsIpc } from './ipc/settings'
 
@@ -21,8 +23,10 @@ function initDatabase(): Db {
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -76,6 +80,8 @@ app.whenReady().then(() => {
   }
   registerSettingsIpc(db)
   registerLedgerIpc(db)
+  registerBudgetIpc(db)
+  registerInvestmentIpc(db)
   createWindow()
 
   app.on('activate', function () {

@@ -101,16 +101,22 @@ describe('posting rules', () => {
 
   it('totals net worth per currency without converting', () => {
     expect(
-      netWorth([
-        { type: 'asset', currency: 'USD', balanceMinor: 10000 },
-        { type: 'asset', currency: 'PHP', balanceMinor: 500000 },
-        { type: 'liability', currency: 'PHP', balanceMinor: -120000 }
-      ])
-    ).toEqual([
-      { currency: 'PHP', assetsMinor: 500000, liabilitiesMinor: 120000, netMinor: 380000 },
-      { currency: 'USD', assetsMinor: 10000, liabilitiesMinor: 0, netMinor: 10000 }
-    ])
-    expect(netWorth([])).toEqual([])
+      netWorth(
+        [
+          { type: 'asset', currency: 'USD', balanceMinor: 10000, holdingsMinor: 0 },
+          { type: 'asset', currency: 'PHP', balanceMinor: 500000, holdingsMinor: 0 },
+          { type: 'liability', currency: 'PHP', balanceMinor: -120000, holdingsMinor: 0 }
+        ],
+        []
+      )
+    ).toEqual({
+      totals: [
+        { currency: 'PHP', assetsMinor: 500000, liabilitiesMinor: 120000, netMinor: 380000 },
+        { currency: 'USD', assetsMinor: 10000, liabilitiesMinor: 0, netMinor: 10000 }
+      ],
+      converted: null
+    })
+    expect(netWorth([], [])).toEqual({ totals: [], converted: null })
   })
 
   it('describes a transfer by where the money went', () => {
@@ -153,6 +159,8 @@ describe('ledger database', () => {
     const id = uuidv7()
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     expect(ipcContract['transactions:delete'].input.safeParse({ id }).success).toBe(true)
+    const burst = Array.from({ length: 1000 }, uuidv7)
+    expect([...burst].sort()).toEqual(burst)
   })
 
   it('creates accounts with opening balances and hides system accounts', () => {
@@ -178,14 +186,16 @@ describe('ledger database', () => {
       kind: 'expense',
       accountId: gotyme.id,
       amountMinor: 1999,
-      payee: 'Lunch'
+      payee: 'Lunch',
+      categoryId: null
     })
     createTransaction(db, {
       ...base,
       kind: 'income',
       accountId: gotyme.id,
       amountMinor: 5000000,
-      payee: 'Salary'
+      payee: 'Salary',
+      allocations: []
     })
     createTransaction(db, {
       ...base,
@@ -264,7 +274,8 @@ describe('ledger database', () => {
       amountMinor: 500,
       date: '2026-02-01',
       payee: 'x',
-      memo: ''
+      memo: '',
+      categoryId: null
     })
     const [row] = listTransactions(db)
     deleteTransaction(db, row.id)
@@ -279,6 +290,7 @@ describe('ledger ipc schemas', () => {
   it('rejects floats, negatives and bad dates', () => {
     const input = ipcContract['transactions:create'].input
     const ok = {
+      categoryId: null,
       kind: 'expense',
       accountId: uuidv7(),
       amountMinor: 100,

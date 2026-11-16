@@ -1,7 +1,10 @@
 import { VStack } from '@astryxdesign/core/Stack'
 import { Heading, Text } from '@astryxdesign/core/Text'
+import { Selector } from '@astryxdesign/core/Selector'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { themeModeSchema, type Settings } from '../../../../shared/ipc'
+
+const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 interface Props {
   settings: Settings
@@ -24,6 +27,14 @@ export function SettingsPage({ settings, onChange }: Props): React.JSX.Element {
           <SegmentedControlItem value="dark" label="Dark" />
         </SegmentedControl>
       </VStack>
+      <Selector
+        label="Week starts on"
+        description="Used for weekly budgets."
+        options={weekdays.map((label, day) => ({ value: String(day), label }))}
+        value={String(settings.weekStart)}
+        onChange={(value) => onChange({ weekStart: Number(value) })}
+        width={240}
+      />
     </VStack>
   )
 }

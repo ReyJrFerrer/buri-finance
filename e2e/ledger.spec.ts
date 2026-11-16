@@ -42,7 +42,17 @@ test('accounts, transactions and net worth work end to end and survive a restart
   expect(await page.evaluate(() => typeof (window as never)['require'])).toBe('undefined')
   expect(
     await page.evaluate(() => Object.keys((window as unknown as { api: object }).api).sort())
-  ).toEqual(['accounts', 'netWorth', 'settings', 'transactions'])
+  ).toEqual([
+    'accounts',
+    'budgets',
+    'categories',
+    'goals',
+    'investments',
+    'netWorth',
+    'rules',
+    'settings',
+    'transactions'
+  ])
 
   await expect(page.getByRole('heading', { name: 'Your net worth starts here' })).toBeVisible()
   await shot('1-empty-overview')

@@ -2,6 +2,7 @@ import type { Account, NewAccount } from '../../shared/ipc'
 import { openingSplits, type LedgerAccount } from '../ledger/posting'
 import type { Db } from './connection'
 import { uuidv7 } from './id'
+import { holdingsByAccount } from './investments'
 import { insertTransaction } from './transactions'
 
 const selectUserAccounts = `
@@ -11,8 +12,16 @@ const selectUserAccounts = `
   FROM accounts a
   WHERE a.type IN ('asset', 'liability') AND a.archived = 0 AND a.deleted_at IS NULL`
 
+type CashAccount = Omit<Account, 'holdingsMinor'>
+
+function withHoldings(db: Db, accounts: CashAccount[]): Account[] {
+  const holdings = holdingsByAccount(db)
+  return accounts.map((a) => ({ ...a, holdingsMinor: holdings.get(a.id) ?? 0 }))
+}
+
 export function listAccounts(db: Db): Account[] {
-  return db.prepare(`${selectUserAccounts} ORDER BY a.name COLLATE NOCASE`).all() as Account[]
+  const rows = db.prepare(`${selectUserAccounts} ORDER BY a.name COLLATE NOCASE`).all()
+  return withHoldings(db, rows as CashAccount[])
 }
 
 export function getLedgerAccount(db: Db, id: string): LedgerAccount {
@@ -40,5 +49,7 @@ export function createAccount(db: Db, input: NewAccount): Account {
       )
     }
   })()
-  return db.prepare(`${selectUserAccounts} AND a.id = ?`).get(id) as Account
+  return withHoldings(db, [
+    db.prepare(`${selectUserAccounts} AND a.id = ?`).get(id) as CashAccount
+  ])[0]
 }

@@ -4,10 +4,13 @@ import {
   describeTransaction,
   expenseSplits,
   incomeSplits,
+  systemAccounts,
   transferSplits,
   type Split
 } from '../ledger/posting'
+import { baseCurrency } from '../../shared/presets'
 import { getLedgerAccount } from './accounts'
+import { addToBudget } from './budgets'
 import type { Db } from './connection'
 import { uuidv7 } from './id'
 
@@ -22,44 +25,66 @@ export function insertTransaction(db: Db, header: Header, splits: Split[]): stri
   const id = uuidv7()
   const now = new Date().toISOString()
   const insertSplit = db.prepare(
-    `INSERT INTO splits (id, transaction_id, account_id, amount_minor, currency, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO splits (id, transaction_id, account_id, amount_minor, currency, category_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   )
   db.transaction(() => {
     db.prepare(
       'INSERT INTO transactions (id, date, payee, memo, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(id, header.date, header.payee, header.memo, now, now)
     for (const s of splits) {
-      insertSplit.run(uuidv7(), id, s.accountId, s.amountMinor, s.currency, now, now)
+      insertSplit.run(
+        uuidv7(),
+        id,
+        s.accountId,
+        s.amountMinor,
+        s.currency,
+        s.categoryId ?? null,
+        now,
+        now
+      )
     }
   })()
   return id
 }
 
 export function createTransaction(db: Db, input: NewTransaction): void {
-  if (input.kind === 'transfer') {
-    const splits = transferSplits(
-      getLedgerAccount(db, input.fromAccountId),
-      getLedgerAccount(db, input.toAccountId),
-      input.amountMinor,
-      input.receivedMinor
-    )
-    insertTransaction(db, { date: input.date, payee: 'Transfer', memo: input.memo }, splits)
-    return
-  }
-  const account = getLedgerAccount(db, input.accountId)
-  const splits =
-    input.kind === 'expense'
-      ? expenseSplits(account, input.amountMinor)
-      : incomeSplits(account, input.amountMinor)
-  insertTransaction(db, input, splits)
+  db.transaction(() => {
+    if (input.kind === 'transfer') {
+      const splits = transferSplits(
+        getLedgerAccount(db, input.fromAccountId),
+        getLedgerAccount(db, input.toAccountId),
+        input.amountMinor,
+        input.receivedMinor
+      )
+      insertTransaction(db, { date: input.date, payee: 'Transfer', memo: input.memo }, splits)
+      return
+    }
+    const account = getLedgerAccount(db, input.accountId)
+    if (input.kind === 'expense') {
+      const splits = expenseSplits(account, input.amountMinor).map((s) =>
+        s.accountId === systemAccounts.expense ? { ...s, categoryId: input.categoryId } : s
+      )
+      insertTransaction(db, input, splits)
+      return
+    }
+    insertTransaction(db, input, incomeSplits(account, input.amountMinor))
+    const allocated = input.allocations.reduce((sum, a) => sum + a.amountMinor, 0)
+    if (allocated > input.amountMinor) throw new Error('Allocations exceed the income amount')
+    if (allocated > 0 && account.currency !== baseCurrency) {
+      throw new Error(`Only ${baseCurrency} income can be allocated to budgets`)
+    }
+    for (const a of input.allocations) addToBudget(db, a.categoryId, input.date, a.amountMinor)
+  })()
 }
 
 // shortcut: newest 500 only, no paging; add paging or a date filter when lists outgrow it.
 export function listTransactions(db: Db): TransactionRow[] {
   const rows = db
     .prepare(
-      `SELECT t.id, t.date, t.payee, t.memo, a.name AS accountName, s.amount_minor AS amountMinor, s.currency
+      `SELECT t.id, t.date, t.payee, t.memo, a.name AS accountName, s.amount_minor AS amountMinor, s.currency,
+         COALESCE((SELECT c.name FROM splits cs JOIN categories c ON c.id = cs.category_id
+                   WHERE cs.transaction_id = t.id LIMIT 1), '') AS category
        FROM (SELECT * FROM transactions WHERE deleted_at IS NULL
              ORDER BY date DESC, id DESC LIMIT 500) t
        JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
@@ -68,6 +93,7 @@ export function listTransactions(db: Db): TransactionRow[] {
     )
     .all() as (Header & {
     id: string
+    category: string
     accountName: string
     amountMinor: number
     currency: string
@@ -75,8 +101,8 @@ export function listTransactions(db: Db): TransactionRow[] {
   const byId = new Map<string, typeof rows>()
   for (const row of rows) byId.set(row.id, [...(byId.get(row.id) ?? []), row])
   return [...byId.values()].map((splits) => {
-    const { id, date, payee, memo } = splits[0]
-    return { id, date, payee, memo, ...describeTransaction(splits) }
+    const { id, date, payee, memo, category } = splits[0]
+    return { id, date, payee, memo, category, ...describeTransaction(splits) }
   })
 }
 

@@ -29,7 +29,22 @@ export function OverviewPage(props: { onAddAccount: () => void }): React.JSX.Ele
   return (
     <Page title="Overview">
       <Grid columns={{ minWidth: 280, repeat: 'fit' }} gap={4}>
-        {netWorth?.map((total) => (
+        {netWorth?.converted && (
+          <Card>
+            <VStack gap={2}>
+              <Text type="supporting">Total net worth · {netWorth.converted.currency}</Text>
+              <Text type="display-3" weight="bold" hasTabularNumbers>
+                {formatMinor(netWorth.converted.netMinor, netWorth.converted.currency)}
+              </Text>
+              <Text type="supporting" hasTabularNumbers>
+                {netWorth.converted.rates
+                  .map((r) => `${r.currency} converted at ${r.rate}, the rate of ${r.date}`)
+                  .join(' · ')}
+              </Text>
+            </VStack>
+          </Card>
+        )}
+        {netWorth?.totals.map((total) => (
           <Card key={total.currency}>
             <VStack gap={2}>
               <Text type="supporting">Net worth · {total.currency}</Text>
@@ -44,10 +59,10 @@ export function OverviewPage(props: { onAddAccount: () => void }): React.JSX.Ele
           </Card>
         ))}
       </Grid>
-      {(netWorth?.length ?? 0) > 1 && (
+      {(netWorth?.totals.length ?? 0) > 1 && !netWorth?.converted && (
         <Text type="supporting">
-          Each currency is totalled separately. Amounts are not converted until an exchange rate is
-          recorded.
+          Each currency is totalled separately. To see one total, set an exchange rate under
+          Investments.
         </Text>
       )}
       {accounts && (

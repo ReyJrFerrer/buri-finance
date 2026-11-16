@@ -9,11 +9,13 @@ import { TrashIcon } from '@heroicons/react/24/outline'
 import type { TransactionRow } from '../../../../shared/ipc'
 import { Amount } from '../../components/Amount'
 import { Page } from '../../components/Page'
+import { moneyWidth } from '../../lib/table'
 import { useQuery } from '../../lib/useQuery'
 import { AddTransactionDialog } from './AddTransactionDialog'
 
 export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX.Element {
   const [accounts] = useQuery(window.api.accounts.list)
+  const [categories] = useQuery(window.api.categories.list)
   const [transactions, reload] = useQuery(window.api.transactions.list)
   const [isAdding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string>()
@@ -24,17 +26,19 @@ export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX
   const columns: TableColumn<TransactionRow>[] = [
     { key: 'date', header: 'Date', width: pixel(120) },
     { key: 'payee', header: 'Description', renderCell: (t) => t.payee || t.memo },
+    { key: 'category', header: 'Category' },
     { key: 'accountLabel', header: 'Account' },
     {
       key: 'amountMinor',
       header: 'Amount',
       align: 'end',
+      width: moneyWidth,
       renderCell: (t) => <Amount minor={t.amountMinor} currency={t.currency} />
     },
     {
       key: 'id',
       header: '',
-      width: pixel(56),
+      width: pixel(72),
       align: 'end',
       renderCell: (t) => (
         <IconButton
@@ -70,9 +74,10 @@ export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX
       {!!transactions?.length && (
         <Table data={transactions} columns={columns} idKey="id" hasHover />
       )}
-      {isAdding && accounts && (
+      {isAdding && accounts && categories && (
         <AddTransactionDialog
           accounts={accounts}
+          categories={categories}
           onClose={() => setAdding(false)}
           onSaved={() => {
             setAdding(false)
