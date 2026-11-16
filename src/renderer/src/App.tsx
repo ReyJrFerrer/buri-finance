@@ -20,24 +20,19 @@ import {
 } from '@heroicons/react/24/outline'
 import { themes, defaultThemeSlug } from '../../astryx-themes'
 import type { Settings } from '../../shared/ipc'
+import { AccountsPage } from './features/accounts/AccountsPage'
+import { OverviewPage } from './features/overview/OverviewPage'
 import { SettingsPage } from './features/settings/SettingsPage'
+import { TransactionsPage } from './features/transactions/TransactionsPage'
 
 const pages = {
-  overview: { label: 'Overview', icon: HomeIcon, empty: 'Add an account to see your net worth.' },
-  accounts: { label: 'Accounts', icon: WalletIcon, empty: 'Add your first account to start.' },
-  transactions: {
-    label: 'Transactions',
-    icon: ArrowsRightLeftIcon,
-    empty: 'Add an account, then record your first transaction.'
-  },
-  budgets: { label: 'Budgets', icon: ChartPieIcon, empty: 'Create a category to start budgeting.' },
-  goals: { label: 'Goals', icon: FlagIcon, empty: 'Add a savings goal to track progress.' },
-  investments: {
-    label: 'Investments',
-    icon: PresentationChartLineIcon,
-    empty: 'Add a broker account to track holdings.'
-  },
-  settings: { label: 'Settings', icon: Cog6ToothIcon, empty: '' }
+  overview: { label: 'Overview', icon: HomeIcon },
+  accounts: { label: 'Accounts', icon: WalletIcon },
+  transactions: { label: 'Transactions', icon: ArrowsRightLeftIcon },
+  budgets: { label: 'Budgets', icon: ChartPieIcon },
+  goals: { label: 'Goals', icon: FlagIcon },
+  investments: { label: 'Investments', icon: PresentationChartLineIcon },
+  settings: { label: 'Settings', icon: Cog6ToothIcon }
 } as const
 type PageKey = keyof typeof pages
 const pageKeys = Object.keys(pages) as PageKey[]
@@ -70,6 +65,28 @@ function App(): React.JSX.Element {
     />
   )
 
+  const content = (): React.ReactNode => {
+    const goToAccounts = (): void => setPage('accounts')
+    switch (page) {
+      case 'overview':
+        return <OverviewPage onAddAccount={goToAccounts} />
+      case 'accounts':
+        return <AccountsPage />
+      case 'transactions':
+        return <TransactionsPage onAddAccount={goToAccounts} />
+      case 'settings':
+        return settings && <SettingsPage settings={settings} onChange={updateSettings} />
+      default:
+        return (
+          <EmptyState
+            title={pages[page].label}
+            description="This part of the app is not built yet."
+            headingLevel={1}
+          />
+        )
+    }
+  }
+
   return (
     <Theme theme={themes[defaultThemeSlug]} mode={settings?.themeMode ?? 'system'}>
       <AppShell
@@ -90,11 +107,7 @@ function App(): React.JSX.Element {
           </SideNav>
         }
       >
-        {page === 'settings' ? (
-          settings && <SettingsPage settings={settings} onChange={updateSettings} />
-        ) : (
-          <EmptyState title={pages[page].label} description={pages[page].empty} headingLevel={1} />
-        )}
+        {content()}
       </AppShell>
       <CommandPalette
         label="Go to page"

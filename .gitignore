@@ -4,3 +4,8 @@ out
 .DS_Store
 .eslintcache
 *.log*
+e2e/screenshots
+test-results
+*.db
+*.key
+.env*

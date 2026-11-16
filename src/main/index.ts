@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { loadOrCreateKey, openDatabase, type Db } from './db/connection'
 import { migrate, migrations } from './db/migrate'
+import { registerLedgerIpc } from './ipc/ledger'
 import { registerSettingsIpc } from './ipc/settings'
 
 let db: Db | undefined
@@ -74,6 +75,7 @@ app.whenReady().then(() => {
     return
   }
   registerSettingsIpc(db)
+  registerLedgerIpc(db)
   createWindow()
 
   app.on('activate', function () {

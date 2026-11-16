@@ -9,7 +9,17 @@ const api = {
   settings: {
     get: () => invoke('settings:get'),
     update: (patch: IpcInput<'settings:update'>) => invoke('settings:update', patch)
-  }
+  },
+  accounts: {
+    list: () => invoke('accounts:list'),
+    create: (input: IpcInput<'accounts:create'>) => invoke('accounts:create', input)
+  },
+  transactions: {
+    list: () => invoke('transactions:list'),
+    create: (input: IpcInput<'transactions:create'>) => invoke('transactions:create', input),
+    remove: (id: string) => invoke('transactions:delete', { id })
+  },
+  netWorth: { get: () => invoke('networth:get') }
 }
 
 export type Api = typeof api

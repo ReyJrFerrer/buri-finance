@@ -6,7 +6,9 @@
     "src/preload/**/*",
     "src/shared/**/*",
     "tests/**/*",
-    "vitest.config.mts"
+    "vitest.config.mts",
+    "e2e/**/*",
+    "playwright.config.mts"
   ],
   "compilerOptions": {
     "composite": true,
