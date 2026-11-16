@@ -1,5 +1,6 @@
 import type { Db } from '../db/connection'
 import { buy, deleteLot, getInvestments, sell, setFxRate, setPrice } from '../db/investments'
+import { refreshFxRates } from '../prices/fx'
 import { handle } from './handle'
 
 export function registerInvestmentIpc(db: Db): void {
@@ -12,4 +13,5 @@ export function registerInvestmentIpc(db: Db): void {
     ({ securityId, price, date }) => (setPrice(db, securityId, price, date), null)
   )
   handle('fx:set', ({ currency, rate, date }) => (setFxRate(db, currency, rate, date), null))
+  handle('fx:refresh', () => refreshFxRates(db).then(() => null))
 }

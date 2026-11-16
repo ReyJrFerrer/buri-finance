@@ -167,6 +167,6 @@ Finish and test each step before starting the next.
 
 ## Open decisions (ask the owner before choosing)
 
-- Market data provider for US prices and USD/PHP rates, and whether any usable source exists for Philippine stock prices; until decided, prices are entered manually.
+- Market data provider for US prices, and whether any usable source exists for Philippine stock prices; until decided, prices are entered manually. (FX rates: decided, Frankfurter, fetched automatically; see `src/main/prices/fx.ts`.)
 - Whether sync is for the owner's own devices only or also for sharing a budget with other people (the second needs per-budget permissions).
 - App name, bundle id, and icon.

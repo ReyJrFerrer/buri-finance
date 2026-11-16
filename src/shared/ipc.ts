@@ -339,7 +339,8 @@ export const ipcContract = {
   'fx:set': {
     input: z.strictObject({ currency, rate: decimalString, date: isoDate }),
     output: z.null()
-  }
+  },
+  'fx:refresh': { input: z.undefined(), output: z.null() }
 } as const
 
 export type Channel = keyof typeof ipcContract

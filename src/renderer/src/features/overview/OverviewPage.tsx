@@ -1,3 +1,4 @@
+import { Banner } from '@astryxdesign/core/Banner'
 import { Button } from '@astryxdesign/core/Button'
 import { Card } from '@astryxdesign/core/Card'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
@@ -6,12 +7,13 @@ import { VStack } from '@astryxdesign/core/Stack'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { formatMinor } from '../../../../shared/money'
 import { Page } from '../../components/Page'
-import { useQuery } from '../../lib/useQuery'
+import { useFxRefresh, useQuery } from '../../lib/useQuery'
 import { AccountsTable } from '../accounts/AccountsTable'
 
 export function OverviewPage(props: { onAddAccount: () => void }): React.JSX.Element {
   const [accounts] = useQuery(window.api.accounts.list)
-  const [netWorth] = useQuery(window.api.netWorth.get)
+  const [netWorth, reloadNetWorth] = useQuery(window.api.netWorth.get)
+  const fxError = useFxRefresh(reloadNetWorth)
 
   if (accounts?.length === 0) {
     return (
@@ -28,6 +30,13 @@ export function OverviewPage(props: { onAddAccount: () => void }): React.JSX.Ele
 
   return (
     <Page title="Overview">
+      {fxError && (
+        <Banner
+          status="error"
+          title="Exchange rates could not be updated"
+          description={`${fxError} Converted totals use the last saved rates.`}
+        />
+      )}
       <Grid columns={{ minWidth: 280, repeat: 'fit' }} gap={4}>
         {netWorth?.converted && (
           <Card>

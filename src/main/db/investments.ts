@@ -64,6 +64,16 @@ export function latestRates(db: Db): FxRate[] {
     .all(baseCurrency) as FxRate[]
 }
 
+// Currencies of the user's accounts that need a rate into the base currency.
+export function foreignCurrencies(db: Db): string[] {
+  return db
+    .prepare(
+      'SELECT DISTINCT currency FROM accounts WHERE currency != ? AND deleted_at IS NULL ORDER BY currency'
+    )
+    .pluck()
+    .all(baseCurrency) as string[]
+}
+
 export function getInvestments(db: Db): Investments {
   const securities = db
     .prepare(

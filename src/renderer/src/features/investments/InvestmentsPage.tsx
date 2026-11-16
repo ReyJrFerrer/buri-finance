@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Banner } from '@astryxdesign/core/Banner'
 import { Button } from '@astryxdesign/core/Button'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { HStack, VStack } from '@astryxdesign/core/Stack'
@@ -12,7 +13,7 @@ import { DeleteButton } from '../../components/DeleteButton'
 import { Page } from '../../components/Page'
 import { Section } from '../../components/Section'
 import { moneyWidth, nameWidth } from '../../lib/table'
-import { useQuery } from '../../lib/useQuery'
+import { useFxRefresh, useQuery } from '../../lib/useQuery'
 import { BuyDialog, FxDialog, PriceDialog, SellDialog } from './InvestmentDialogs'
 
 type Dialog = 'buy' | 'fx' | { sell: Holding } | { price: Security }
@@ -27,6 +28,7 @@ const number = (text: string): React.JSX.Element => (
 export function InvestmentsPage(props: { onAddAccount: () => void }): React.JSX.Element {
   const [accounts] = useQuery(window.api.accounts.list)
   const [data, reloadData] = useQuery(window.api.investments.get)
+  const fxError = useFxRefresh(reloadData)
   const [dialog, setDialog] = useState<Dialog>()
   const close = (): void => setDialog(undefined)
   const reload = (): void => {
@@ -190,9 +192,16 @@ export function InvestmentsPage(props: { onAddAccount: () => void }): React.JSX.
       {data && (
         <Section
           title="Exchange rates"
-          description={`With a rate for each foreign currency, the overview also shows your net worth in ${baseCurrency}. Your original amounts are never changed.`}
+          description={`With a rate for each foreign currency, the overview also shows your net worth in ${baseCurrency}. Your original amounts are never changed. Rates update automatically from Frankfurter's daily reference rates; you can also set one by hand.`}
           action={<Button label="Set exchange rate" onClick={() => setDialog('fx')} />}
         >
+          {fxError && (
+            <Banner
+              status="error"
+              title="Exchange rates could not be updated"
+              description={`${fxError} Showing the last saved rates.`}
+            />
+          )}
           {!!data.fxRates.length && (
             <Table data={data.fxRates} columns={fxColumns} idKey="currency" />
           )}

@@ -42,6 +42,7 @@ import {
 } from '../src/main/ledger/budgets'
 import { convertMinor, mulDiv, valueMinor } from '../src/main/ledger/decimal'
 import { netWorth } from '../src/main/ledger/posting'
+import { refreshFxRates } from '../src/main/prices/fx'
 import { ipcContract, type Account, type Budget } from '../src/shared/ipc'
 import { formatQuantity, isDecimalString, parseQuantityE8 } from '../src/shared/money'
 
@@ -988,5 +989,50 @@ describe('investments database', () => {
     expect(input.safeParse({ ...ok, price: '0' }).success).toBe(false)
     expect(input.safeParse({ ...ok, quantityE8: 0.5 }).success).toBe(false)
     expect(input.safeParse({ ...ok, symbol: 'DROP TABLE' }).success).toBe(false)
+  })
+})
+
+describe('automatic exchange rates', () => {
+  const service =
+    (rates: Record<string, number>): typeof fetch =>
+    async (url) => {
+      const base = new URL(String(url)).searchParams.get('base')!
+      return base in rates
+        ? Response.json({ base, date: '2026-11-16', rates: { PHP: rates[base] } })
+        : Response.json({ message: 'not found' }, { status: 404 })
+    }
+
+  it('stores the fetched rate as the decimal the service sent', async () => {
+    const db = open()
+    account(db, 'GoTyme')
+    account(db, 'GoTrade', 'USD')
+    await refreshFxRates(db, service({ USD: 63.954 }))
+    expect(latestRates(db)).toEqual([{ currency: 'USD', rate: '63.954', date: '2026-11-16' }])
+  })
+
+  it('makes no request when every account is in the base currency', async () => {
+    const db = open()
+    account(db, 'GoTyme')
+    await refreshFxRates(db, () => Promise.reject(new Error('called')))
+  })
+
+  it('keeps the rates that arrive and reports the currency that has none', async () => {
+    const db = open()
+    account(db, 'GoTrade', 'USD')
+    account(db, 'Other', 'XXX')
+    await expect(refreshFxRates(db, service({ USD: 63.954 }))).rejects.toThrow(
+      'No exchange rate is available for XXX.'
+    )
+    expect(latestRates(db).map((r) => r.currency)).toEqual(['USD'])
+  })
+
+  it('keeps the saved rate and reports when the service is unreachable', async () => {
+    const db = open()
+    account(db, 'GoTrade', 'USD')
+    setFxRate(db, 'USD', '58.125', '2026-02-01')
+    await expect(
+      refreshFxRates(db, () => Promise.reject(new TypeError('offline')))
+    ).rejects.toThrow('Could not reach the exchange rate service.')
+    expect(latestRates(db)[0].rate).toBe('58.125')
   })
 })

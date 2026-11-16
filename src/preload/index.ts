@@ -53,7 +53,8 @@ const api = {
     sell: (input: IpcInput<'investments:sell'>) => invoke('investments:sell', input),
     removeLot: (id: string) => invoke('investments:deleteLot', { id }),
     setPrice: (input: IpcInput<'prices:set'>) => invoke('prices:set', input),
-    setFxRate: (input: IpcInput<'fx:set'>) => invoke('fx:set', input)
+    setFxRate: (input: IpcInput<'fx:set'>) => invoke('fx:set', input),
+    refreshFx: () => invoke('fx:refresh')
   }
 }
 

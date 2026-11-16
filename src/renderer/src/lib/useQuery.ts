@@ -15,6 +15,19 @@ export function useQuery<T>(load: () => Promise<T>): [T | undefined, () => void]
   return [data, useCallback(() => setVersion((v) => v + 1), [])]
 }
 
+// Fetches the latest exchange rates when the page opens, then calls `onDone` (pass a stable
+// reload) so the page shows them. Returns the error message when the rates could not be fetched.
+export function useFxRefresh(onDone: () => void): string | undefined {
+  const [error, setError] = useState<string>()
+  useEffect(() => {
+    window.api.investments
+      .refreshFx()
+      .catch((e: unknown) => setError(errorMessage(e)))
+      .then(onDone)
+  }, [onDone])
+  return error
+}
+
 // Local calendar date; en-CA formats as YYYY-MM-DD.
 export const today = (): ISODateString => new Date().toLocaleDateString('en-CA') as ISODateString
 
