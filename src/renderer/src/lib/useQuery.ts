@@ -28,6 +28,10 @@ export function useFxRefresh(onDone: () => void): string | undefined {
   return error
 }
 
+// "November 2026" for any ISO date in that month.
+export const monthLabel = (iso: string): string =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
 // Local calendar date; en-CA formats as YYYY-MM-DD.
 export const today = (): ISODateString => new Date().toLocaleDateString('en-CA') as ISODateString
 

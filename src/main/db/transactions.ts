@@ -1,4 +1,4 @@
-import type { NewTransaction, TransactionRow } from '../../shared/ipc'
+import type { MonthActivity, NewTransaction, TransactionRow } from '../../shared/ipc'
 import {
   assertBalanced,
   describeTransaction,
@@ -8,6 +8,7 @@ import {
   transferSplits,
   type Split
 } from '../ledger/posting'
+import { addMonths, monthEnd, monthStart } from '../ledger/budgets'
 import { baseCurrency } from '../../shared/presets'
 import { getLedgerAccount } from './accounts'
 import { addToBudget } from './budgets'
@@ -108,6 +109,47 @@ export function listTransactions(db: Db): TransactionRow[] {
     const { id, date, payee, memo, category } = splits[0]
     return { id, date, payee, memo, category, ...describeTransaction(splits) }
   })
+}
+
+// Income and spending per day of the month containing `date`. Transfers, opening balances and
+// investment trades are neither, so they only count as transactions.
+// shortcut: amounts cover the base currency only; add per-currency totals when income or
+// spending in another currency needs to show here.
+export function monthActivity(db: Db, date: string): MonthActivity {
+  const start = monthStart(date)
+  const end = monthEnd(date)
+  const days = db
+    .prepare(
+      `SELECT t.date,
+         COALESCE(SUM(CASE WHEN a.type = 'income' AND s.currency = ? THEN -s.amount_minor END), 0) AS incomeMinor,
+         COALESCE(SUM(CASE WHEN a.type = 'expense' AND s.currency = ? THEN s.amount_minor END), 0) AS expenseMinor,
+         COUNT(DISTINCT t.id) AS count
+       FROM transactions t
+       JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
+       JOIN accounts a ON a.id = s.account_id
+       WHERE t.deleted_at IS NULL AND t.date BETWEEN ? AND ?
+       GROUP BY t.date ORDER BY t.date`
+    )
+    .all(baseCurrency, baseCurrency, start, end) as MonthActivity['days']
+  const total = (pick: (day: MonthActivity['days'][number]) => number): number =>
+    days.reduce((sum, day) => sum + pick(day), 0)
+  return {
+    start,
+    end,
+    previous: addMonths(start, -1),
+    next: addMonths(start, 1),
+    currency: baseCurrency,
+    incomeMinor: total((d) => d.incomeMinor),
+    expenseMinor: total((d) => d.expenseMinor),
+    count: total((d) => d.count),
+    days
+  }
+}
+
+export function hasTransactionOn(db: Db, date: string): boolean {
+  return !!db
+    .prepare('SELECT 1 FROM transactions WHERE date = ? AND deleted_at IS NULL LIMIT 1')
+    .get(date)
 }
 
 // Soft delete, so the deletion can sync later.

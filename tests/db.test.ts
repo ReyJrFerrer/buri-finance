@@ -79,7 +79,12 @@ describe('settings', () => {
   it('returns defaults and persists updates', () => {
     const db = openDatabase(tempFile('m.db'), key)
     migrate(db, migrations)
-    expect(getSettings(db)).toEqual({ themeMode: 'system', budgetPeriod: 'monthly', weekStart: 1 })
+    expect(getSettings(db)).toEqual({
+      themeMode: 'system',
+      budgetPeriod: 'monthly',
+      weekStart: 1,
+      logReminder: true
+    })
     expect(updateSettings(db, { themeMode: 'dark', weekStart: 0 })).toMatchObject({
       themeMode: 'dark',
       weekStart: 0

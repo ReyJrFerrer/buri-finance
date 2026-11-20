@@ -6,7 +6,9 @@ export const budgetPeriodSchema = z.enum(['monthly', 'weekly'])
 export const settingsSchema = z.object({
   themeMode: themeModeSchema,
   budgetPeriod: budgetPeriodSchema,
-  weekStart: z.int().min(0).max(6) // 0 = Sunday
+  weekStart: z.int().min(0).max(6), // 0 = Sunday
+  // An evening system notification on days with no transaction recorded.
+  logReminder: z.boolean()
 })
 export type Settings = z.infer<typeof settingsSchema>
 
@@ -95,6 +97,19 @@ export const transactionRowSchema = z.object({
   currency
 })
 export type TransactionRow = z.infer<typeof transactionRowSchema>
+
+const dayActivity = z.object({ incomeMinor: minor, expenseMinor: minor, count: z.int() })
+// Income and spending in one month, in the base currency, with a row per day that has any.
+export const monthActivitySchema = dayActivity.extend({
+  start: isoDate,
+  end: isoDate,
+  // A date inside the month before and after this one, for stepping through months.
+  previous: isoDate,
+  next: isoDate,
+  currency,
+  days: z.array(dayActivity.extend({ date: isoDate }))
+})
+export type MonthActivity = z.infer<typeof monthActivitySchema>
 
 const currencyTotal = z.object({
   currency,
@@ -279,6 +294,7 @@ export const ipcContract = {
   'accounts:create': { input: newAccountSchema, output: accountSchema },
   'transactions:list': { input: z.undefined(), output: z.array(transactionRowSchema) },
   'transactions:create': { input: newTransactionSchema, output: z.null() },
+  'transactions:month': { input: z.strictObject({ date: isoDate }), output: monthActivitySchema },
   'transactions:delete': { input: z.strictObject({ id }), output: z.null() },
   'networth:get': { input: z.undefined(), output: netWorthSchema },
   'categories:list': { input: z.undefined(), output: z.array(categorySchema) },

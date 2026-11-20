@@ -17,7 +17,7 @@ import { Page } from '../../components/Page'
 import { PieChart } from '../../components/PieChart'
 import { Section } from '../../components/Section'
 import { moneyWidth, nameWidth } from '../../lib/table'
-import { today, useQuery } from '../../lib/useQuery'
+import { monthLabel, today, useQuery } from '../../lib/useQuery'
 import {
   AddCategoryDialog,
   AddRuleDialog,
@@ -27,9 +27,6 @@ import {
 import { DueDates } from './DueDates'
 
 type Row = Budget['rows'][number]
-
-const monthLabel = (start: string): string =>
-  new Date(`${start}T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
 export function BudgetsPage(): React.JSX.Element {
   const [settings, reloadSettings] = useQuery(window.api.settings.get)

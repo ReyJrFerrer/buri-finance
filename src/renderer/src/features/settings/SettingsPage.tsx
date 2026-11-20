@@ -1,6 +1,7 @@
 import { VStack } from '@astryxdesign/core/Stack'
 import { Heading, Text } from '@astryxdesign/core/Text'
 import { Selector } from '@astryxdesign/core/Selector'
+import { Switch } from '@astryxdesign/core/Switch'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { themeModeSchema, type Settings } from '../../../../shared/ipc'
 
@@ -34,6 +35,12 @@ export function SettingsPage({ settings, onChange }: Props): React.JSX.Element {
         value={String(settings.weekStart)}
         onChange={(value) => onChange({ weekStart: Number(value) })}
         width={240}
+      />
+      <Switch
+        label="Remind me to log transactions"
+        description="A notification at 8 PM on days with nothing recorded, while the app is open."
+        value={settings.logReminder}
+        onChange={(logReminder) => onChange({ logReminder })}
       />
     </VStack>
   )

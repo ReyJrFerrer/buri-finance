@@ -1,7 +1,12 @@
 import { settingsSchema, type Settings } from '../../shared/ipc'
 import type { Db } from './connection'
 
-const defaults: Settings = { themeMode: 'system', budgetPeriod: 'monthly', weekStart: 1 }
+const defaults: Settings = {
+  themeMode: 'system',
+  budgetPeriod: 'monthly',
+  weekStart: 1,
+  logReminder: true
+}
 
 export function getSettings(db: Db): Settings {
   const rows = db.prepare('SELECT key, value FROM settings').all() as {

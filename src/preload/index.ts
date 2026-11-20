@@ -16,6 +16,7 @@ const api = {
   },
   transactions: {
     list: () => invoke('transactions:list'),
+    month: (date: string) => invoke('transactions:month', { date }),
     create: (input: IpcInput<'transactions:create'>) => invoke('transactions:create', input),
     remove: (id: string) => invoke('transactions:delete', { id })
   },

@@ -8,6 +8,7 @@ import { registerBudgetIpc } from './ipc/budgets'
 import { registerInvestmentIpc } from './ipc/investments'
 import { registerLedgerIpc } from './ipc/ledger'
 import { registerSettingsIpc } from './ipc/settings'
+import { startReminders } from './reminders'
 
 let db: Db | undefined
 
@@ -83,6 +84,7 @@ app.whenReady().then(() => {
   registerBudgetIpc(db)
   registerInvestmentIpc(db)
   createWindow()
+  startReminders(db)
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

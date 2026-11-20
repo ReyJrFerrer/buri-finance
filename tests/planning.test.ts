@@ -27,7 +27,14 @@ import {
   setPrice
 } from '../src/main/db/investments'
 import { migrate, migrations } from '../src/main/db/migrate'
-import { createTransaction, deleteTransaction, listTransactions } from '../src/main/db/transactions'
+import {
+  createTransaction,
+  deleteTransaction,
+  hasTransactionOn,
+  listTransactions,
+  monthActivity
+} from '../src/main/db/transactions'
+import { shouldRemind } from '../src/main/ledger/reminders'
 import {
   addDays,
   billOccurrences,
@@ -1034,5 +1041,76 @@ describe('automatic exchange rates', () => {
       refreshFxRates(db, () => Promise.reject(new TypeError('offline')))
     ).rejects.toThrow('Could not reach the exchange rate service.')
     expect(latestRates(db)[0].rate).toBe('58.125')
+  })
+})
+
+describe('month activity', () => {
+  it('totals income and spending per day and leaves out transfers and opening balances', () => {
+    const db = open()
+    const bank = account(db, 'GoTyme', 'PHP', 1000000) // opening balance dated 2026-01-01
+    const wallet = account(db, 'GCash')
+    const usd = account(db, 'GoTrade', 'USD')
+    const food = category(db, 'Food')
+    const income = { kind: 'income' as const, payee: '', memo: '', allocations: [] }
+    createTransaction(db, {
+      ...income,
+      accountId: bank.id,
+      amountMinor: 5000000,
+      date: '2026-01-15'
+    })
+    createTransaction(db, { ...income, accountId: usd.id, amountMinor: 10000, date: '2026-01-15' })
+    spend(db, bank.id, food, 12345, '2026-01-15')
+    spend(db, bank.id, food, 55, '2026-01-31')
+    const gone = spend(db, bank.id, food, 999, '2026-01-31')
+    deleteTransaction(db, gone)
+    spend(db, bank.id, food, 777, '2026-02-01')
+    createTransaction(db, {
+      kind: 'transfer',
+      fromAccountId: bank.id,
+      toAccountId: wallet.id,
+      amountMinor: 20000,
+      date: '2026-01-20',
+      memo: ''
+    })
+
+    const result = monthActivity(db, '2026-01-20')
+    expect(result).toMatchObject({
+      start: '2026-01-01',
+      end: '2026-01-31',
+      previous: '2025-12-01',
+      next: '2026-02-01',
+      currency: 'PHP',
+      incomeMinor: 5000000,
+      expenseMinor: 12400
+    })
+    expect(result.days).toEqual([
+      { date: '2026-01-01', incomeMinor: 0, expenseMinor: 0, count: 1 },
+      { date: '2026-01-15', incomeMinor: 5000000, expenseMinor: 12345, count: 3 },
+      { date: '2026-01-20', incomeMinor: 0, expenseMinor: 0, count: 1 },
+      { date: '2026-01-31', incomeMinor: 0, expenseMinor: 55, count: 1 }
+    ])
+    expect(ipcContract['transactions:month'].output.safeParse(result).success).toBe(true)
+    expect(monthActivity(db, '2026-03-10')).toMatchObject({ incomeMinor: 0, days: [] })
+    expect(hasTransactionOn(db, '2026-01-31')).toBe(true)
+    expect(hasTransactionOn(db, '2026-01-30')).toBe(false)
+  })
+})
+
+describe('log reminder', () => {
+  const due = {
+    isEnabled: true,
+    hasAccounts: true,
+    hasLoggedToday: false,
+    hour: 20,
+    today: '2026-11-17',
+    lastReminded: '2026-11-16'
+  }
+  it('reminds once in the evening of a day with nothing recorded', () => {
+    expect(shouldRemind(due)).toBe(true)
+    expect(shouldRemind({ ...due, hour: 19 })).toBe(false)
+    expect(shouldRemind({ ...due, hasLoggedToday: true })).toBe(false)
+    expect(shouldRemind({ ...due, lastReminded: '2026-11-17' })).toBe(false)
+    expect(shouldRemind({ ...due, isEnabled: false })).toBe(false)
+    expect(shouldRemind({ ...due, hasAccounts: false })).toBe(false)
   })
 })
