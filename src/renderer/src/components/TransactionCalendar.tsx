@@ -44,11 +44,11 @@ export function TransactionCalendar(props: {
       description="Income, expenses and transfers by date. Open a logged day to see full details."
     >
       <HStack gap={2} hAlign="between" vAlign="center">
-        <Button label="Previous month" onClick={() => navigateMonth(-1)} />
+        <Button label="Previous" onClick={() => navigateMonth(-1)} />
         <Text weight="medium" aria-live="polite">
           {monthYearLabel}
         </Text>
-        <Button label="Next month" onClick={() => navigateMonth(1)} />
+        <Button label="Next" onClick={() => navigateMonth(1)} />
       </HStack>
       <Grid columns={7} gap={1} aria-label={`Transactions in ${monthYearLabel}`}>
         {dayNames.map((name) => (
@@ -105,7 +105,7 @@ export function TransactionCalendar(props: {
                     </Text>
                   </VStack>
                 ))}
-                {count ? (
+                {/* {count ? (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -120,7 +120,7 @@ export function TransactionCalendar(props: {
                   </Button>
                 ) : (
                   <Text type="supporting">—</Text>
-                )}
+                )} */}
               </VStack>
             </Card>
           )
@@ -140,13 +140,17 @@ export function TransactionCalendar(props: {
                 <VStack gap={5}>
                   {(byDate.get(selectedDate) ?? []).map((t) => (
                     <VStack key={t.id} gap={2}>
-                      <Text weight="semibold">{t.payee || t.memo || kindLabels[t.kind]}</Text>
+                      {/* <Text weight="semibold" wordBreak="break-word">
+                        {t.payee || kindLabels[t.kind]}
+                      </Text> */}
                       <Text>
                         {kindLabels[t.kind]} · {t.date}
                       </Text>
                       <Text>Account: {t.accountLabel}</Text>
                       <Text>Category: {t.category || 'Uncategorized'}</Text>
-                      <Text>Memo: {t.memo || 'No memo'}</Text>
+                      <Text wordBreak="break-word" style={{ whiteSpace: 'pre-wrap' }}>
+                        Memo: {t.memo || 'No memo'}
+                      </Text>
                       <Text
                         hasTabularNumbers
                         justify="end"
