@@ -108,9 +108,9 @@ test('accounts, transactions and net worth work end to end and survive a restart
 
   // 10,000 - 19.99 + 50,000 - 5,800 = 54,180.01
   await nav('Overview')
-  await expect(page.getByText('Net worth · PHP')).toBeVisible()
-  await expect(page.getByText('PHP 54,180.01').first()).toBeVisible()
-  await expect(page.getByText('USD 100.00').first()).toBeVisible()
+  await expect(page.getByText('Net worth', { exact: true })).toBeVisible()
+  await expect(page.getByText('₱54,180.01').first()).toBeVisible()
+  await expect(page.getByText('$100.00').first()).toBeVisible()
   await shot('5-overview')
 
   // Deleting a transaction puts the balance back.
@@ -128,14 +128,14 @@ test('accounts, transactions and net worth work end to end and survive a restart
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible()
   await page.getByRole('radio', { name: 'Dark' }).click()
   await nav('Overview')
-  await expect(page.getByText('PHP 54,200.00').first()).toBeVisible()
+  await expect(page.getByText('₱54,200.00').first()).toBeVisible()
   await shot('6-overview-dark')
   await app.close()
 
   // Data and settings persist in the encrypted database.
   app = await launch(dir)
   page = await app.firstWindow()
-  await expect(page.getByText('PHP 54,200.00').first()).toBeVisible()
+  await expect(page.getByText('₱54,200.00').first()).toBeVisible()
   await nav('Settings')
   await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked()
   await app.close()

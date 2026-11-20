@@ -1,5 +1,6 @@
 import { baseCurrency } from '../../shared/presets'
 import type { NetWorth } from '../../shared/ipc'
+import { addDays } from './budgets'
 import { convertMinor } from './decimal'
 
 export const systemAccounts = {
@@ -149,14 +150,42 @@ export function netWorth(accounts: ValuedAccount[], rates: FxRate[]): NetWorth {
   const foreign = totals.filter((t) => t.currency !== baseCurrency)
   const used = foreign.map((t) => rates.find((r) => r.currency === t.currency))
   if (foreign.length === 0 || used.some((r) => !r)) return { totals, converted: null }
-  const netMinor = totals.reduce((sum, t) => {
+  const parts = totals.map((t) => {
     const rate = rates.find((r) => r.currency === t.currency)
-    return sum + (rate ? convertMinor(t.netMinor, rate.rate) : t.netMinor)
-  }, 0)
+    return {
+      currency: t.currency,
+      netMinor: rate ? convertMinor(t.netMinor, rate.rate) : t.netMinor
+    }
+  })
+  const netMinor = parts.reduce((sum, p) => sum + p.netMinor, 0)
   return {
     totals,
-    converted: { currency: baseCurrency, netMinor, rates: used.filter((r) => r !== undefined) }
+    converted: {
+      currency: baseCurrency,
+      netMinor,
+      rates: used.filter((r) => r !== undefined),
+      parts
+    }
   }
+}
+
+// Net worth at the end of each day from `start` through `end`, walked back from today's figure by
+// undoing each later day's income and spending (`flows`, by date).
+// shortcut: price and FX moves are not replayed, so earlier points carry today's valuation;
+// store dated valuations if the history must show market moves.
+export function netWorthHistory(
+  netMinor: number,
+  flows: Map<string, number>,
+  start: string,
+  end: string
+): { date: string; netMinor: number }[] {
+  const points: { date: string; netMinor: number }[] = []
+  let value = netMinor
+  for (let date = end; date >= start; date = addDays(date, -1)) {
+    points.push({ date, netMinor: value })
+    value -= flows.get(date) ?? 0
+  }
+  return points.reverse()
 }
 
 interface UserSplit {

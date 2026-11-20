@@ -20,9 +20,11 @@ const api = {
     list: () => invoke('transactions:list'),
     month: (date: string) => invoke('transactions:month', { date }),
     create: (input: IpcInput<'transactions:create'>) => invoke('transactions:create', input),
-    remove: (id: string) => invoke('transactions:delete', { id })
+    remove: (id: string) => invoke('transactions:delete', { id }),
+    categorize: (input: IpcInput<'transactions:categorize'>) =>
+      invoke('transactions:categorize', input)
   },
-  netWorth: { get: () => invoke('networth:get') },
+  netWorth: { get: () => invoke('networth:get'), history: () => invoke('networth:history') },
   categories: {
     list: () => invoke('categories:list'),
     create: (name: string) => invoke('categories:create', { name }),

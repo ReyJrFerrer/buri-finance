@@ -1,8 +1,10 @@
 import type { Account, AccountUpdate, NewAccount } from '../../shared/ipc'
+import { convertMinor } from '../ledger/decimal'
 import { openingSplits, type LedgerAccount } from '../ledger/posting'
+import { baseCurrency } from '../../shared/presets'
 import type { Db } from './connection'
 import { uuidv7 } from './id'
-import { holdingsByAccount } from './investments'
+import { holdingsByAccount, latestRates } from './investments'
 import { insertTransaction } from './transactions'
 
 const selectUserAccounts = `
@@ -12,11 +14,19 @@ const selectUserAccounts = `
   FROM accounts a
   WHERE a.type IN ('asset', 'liability') AND a.archived = 0 AND a.deleted_at IS NULL`
 
-type CashAccount = Omit<Account, 'holdingsMinor'>
+type CashAccount = Omit<Account, 'holdingsMinor' | 'baseMinor'>
 
 function withHoldings(db: Db, accounts: CashAccount[]): Account[] {
   const holdings = holdingsByAccount(db)
-  return accounts.map((a) => ({ ...a, holdingsMinor: holdings.get(a.id) ?? 0 }))
+  const rates = latestRates(db)
+  return accounts.map((a) => {
+    const holdingsMinor = holdings.get(a.id) ?? 0
+    const valueMinor = a.balanceMinor + holdingsMinor
+    const rate = rates.find((r) => r.currency === a.currency)
+    const baseMinor =
+      a.currency === baseCurrency ? valueMinor : rate ? convertMinor(valueMinor, rate.rate) : null
+    return { ...a, holdingsMinor, baseMinor }
+  })
 }
 
 export function listAccounts(db: Db): Account[] {

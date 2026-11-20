@@ -32,6 +32,17 @@ export function useFxRefresh(onDone: () => void): string | undefined {
 export const monthLabel = (iso: string): string =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
+// "Nov 18" and "Friday, 20 November 2026" for an ISO date.
+export const shortDate = (iso: string): string =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+export const longDate = (iso: string): string =>
+  new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
+
 // Local calendar date; en-CA formats as YYYY-MM-DD.
 export const today = (): ISODateString => new Date().toLocaleDateString('en-CA') as ISODateString
 

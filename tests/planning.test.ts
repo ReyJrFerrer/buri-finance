@@ -28,8 +28,11 @@ import {
 } from '../src/main/db/investments'
 import { migrate, migrations } from '../src/main/db/migrate'
 import {
+  categorizeTransaction,
   createTransaction,
+  dailyFlows,
   deleteTransaction,
+  firstTransactionDate,
   hasTransactionOn,
   listTransactions,
   monthActivity
@@ -962,6 +965,10 @@ describe('investments database', () => {
     account(db, 'GoTyme', 'PHP', 1000000)
     account(db, 'GoTrade', 'USD', 10000)
     expect(netWorth(listAccounts(db), latestRates(db)).converted).toBeNull()
+    expect(listAccounts(db).map((a) => [a.name, a.baseMinor])).toEqual([
+      ['GoTrade', null],
+      ['GoTyme', 1000000]
+    ])
 
     setFxRate(db, 'USD', '57.00', '2026-01-01')
     setFxRate(db, 'USD', '58.125', '2026-02-01')
@@ -970,8 +977,13 @@ describe('investments database', () => {
     expect(result.converted).toEqual({
       currency: 'PHP',
       netMinor: 1000000 + 581250,
-      rates: [{ currency: 'USD', rate: '58.125', date: '2026-02-01' }]
+      rates: [{ currency: 'USD', rate: '58.125', date: '2026-02-01' }],
+      parts: [
+        { currency: 'PHP', netMinor: 1000000 },
+        { currency: 'USD', netMinor: 581250 }
+      ]
     })
+    expect(listAccounts(db).find((a) => a.name === 'GoTrade')?.baseMinor).toBe(581250)
     // The original amounts are untouched
     expect(result.totals.map((t) => [t.currency, t.netMinor])).toEqual([
       ['PHP', 1000000],
@@ -1081,8 +1093,14 @@ describe('month activity', () => {
       next: '2026-02-01',
       currency: 'PHP',
       incomeMinor: 5000000,
-      expenseMinor: 12400
+      expenseMinor: 12400,
+      // The USD income is outside the base currency, so it is not counted
+      incomeCount: 1,
+      expenseCount: 2,
+      uncategorizedCount: 0,
+      openingDates: ['2026-01-01']
     })
+    expect(listTransactions(db).find((t) => t.payee === 'Transfer')?.kind).toBe('transfer')
     expect(result.days).toEqual([
       { date: '2026-01-01', incomeMinor: 0, expenseMinor: 0, count: 1 },
       { date: '2026-01-15', incomeMinor: 5000000, expenseMinor: 12345, count: 3 },
@@ -1093,6 +1111,67 @@ describe('month activity', () => {
     expect(monthActivity(db, '2026-03-10')).toMatchObject({ incomeMinor: 0, days: [] })
     expect(hasTransactionOn(db, '2026-01-31')).toBe(true)
     expect(hasTransactionOn(db, '2026-01-30')).toBe(false)
+  })
+})
+
+describe('categorizing', () => {
+  it('counts uncategorized spending until it is put in a category', () => {
+    const db = open()
+    const bank = account(db, 'GoTyme', 'PHP', 1000000)
+    const rent = category(db, 'Rent')
+    const id = createTransaction(db, {
+      kind: 'expense',
+      accountId: bank.id,
+      amountMinor: 2500000,
+      date: '2026-01-18',
+      payee: 'Mamu',
+      memo: '',
+      categoryId: null
+    })
+    expect(monthActivity(db, '2026-01-20')).toMatchObject({
+      expenseCount: 1,
+      uncategorizedCount: 1,
+      uncategorizedMinor: 2500000
+    })
+    expect(listTransactions(db).map((t) => t.kind)).toEqual(['expense', 'opening'])
+
+    categorizeTransaction(db, id, rent)
+    expect(monthActivity(db, '2026-01-20')).toMatchObject({
+      uncategorizedCount: 0,
+      uncategorizedMinor: 0
+    })
+    expect(listTransactions(db)[0].category).toBe('Rent')
+    expect(getBudget(db, 'monthly', '2026-01-20', 1).rows[0].spentMinor).toBe(2500000)
+
+    const opening = listTransactions(db)[1]
+    expect(() => categorizeTransaction(db, opening.id, rent)).toThrow('Only an expense')
+    expect(() => categorizeTransaction(db, id, bank.id)).toThrow('Category not found')
+  })
+
+  it('lists daily income minus spending for the net worth history', () => {
+    const db = open()
+    expect(firstTransactionDate(db)).toBeNull()
+    const bank = account(db, 'GoTyme', 'PHP', 1000000)
+    const food = category(db, 'Food')
+    createTransaction(db, {
+      kind: 'income',
+      accountId: bank.id,
+      amountMinor: 5000,
+      date: '2026-01-01',
+      payee: '',
+      memo: '',
+      allocations: []
+    })
+    spend(db, bank.id, food, 1234, '2026-01-01')
+    spend(db, bank.id, food, 100, '2026-01-03')
+    // Opening balances and transfers are not flows
+    expect(dailyFlows(db)).toEqual(
+      new Map([
+        ['2026-01-01', 5000 - 1234],
+        ['2026-01-03', -100]
+      ])
+    )
+    expect(firstTransactionDate(db)).toBe('2026-01-01')
   })
 })
 

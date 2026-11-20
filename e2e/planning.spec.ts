@@ -162,11 +162,11 @@ test('budgets, goals and investments work end to end', async () => {
   // Overview. PHP: GoTyme 148,749.50 + DragonFi cash 50,000 - 12,850 + 6,000 + holdings 9,000
   // = 200,899.50. USD 100.00 at 58.25 = 5,825.00. Total 206,724.50.
   await go('Overview')
-  await expect(page.getByText('PHP 200,899.50').first()).toBeVisible()
-  await expect(page.getByText('Total net worth · PHP')).toBeVisible()
-  await expect(page.getByText('PHP 206,724.50')).toBeVisible()
-  await expect(page.getByText(/USD converted at 58\.25/)).toBeVisible()
-  await expect(row(/DragonFi/)).toContainText('PHP 43,150.00')
+  await expect(page.getByText('₱200,899.50').first()).toBeVisible()
+  await expect(page.getByText('₱206,724.50').first()).toBeVisible()
+  await expect(page.getByText(/\$1 = ₱58\.25 · rate of/)).toBeVisible()
+  // The accounts card shows DragonFi's cash 43,150.00 plus holdings 9,000.00
+  await expect(page.getByText('₱52,150.00').first()).toBeVisible()
   await shot('12-overview-converted')
 
   // The sale and purchase reached the ledger as cash movements.

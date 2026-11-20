@@ -18,7 +18,8 @@ import {
   WalletIcon
 } from '@heroicons/react/24/outline'
 import { themes, defaultThemeSlug } from '../../astryx-themes'
-import type { Settings } from '../../shared/ipc'
+import type { Settings, TransactionRow } from '../../shared/ipc'
+import { formatMoney } from '../../shared/money'
 import { AccountsPage } from './features/accounts/AccountsPage'
 import { BudgetsPage } from './features/budgets/BudgetsPage'
 import { GoalsPage } from './features/goals/GoalsPage'
@@ -43,14 +44,26 @@ function App(): React.JSX.Element {
   const [page, setPage] = useState<PageKey>('overview')
   const [settings, setSettings] = useState<Settings>()
   const [isPaletteOpen, setPaletteOpen] = useState(false)
+  const [transactions, setTransactions] = useState<TransactionRow[]>([])
+  // Pages first, then transactions; picking a transaction opens the Transactions page.
   const paletteSource = useMemo(
-    () => createStaticSource(pageKeys.map((key) => ({ id: key, label: pages[key].label }))),
-    []
+    () =>
+      createStaticSource([
+        ...pageKeys.map((key) => ({ id: key, label: pages[key].label })),
+        ...transactions.map((t) => ({
+          id: `transactions:${t.id}`,
+          label: `${t.payee || t.memo || 'Transaction'} · ${t.date} · ${formatMoney(t.amountMinor, t.currency)}`
+        }))
+      ]),
+    [transactions]
   )
 
   useEffect(() => {
     window.api.settings.get().then(setSettings)
   }, [])
+  useEffect(() => {
+    if (isPaletteOpen) window.api.transactions.list().then(setTransactions)
+  }, [isPaletteOpen])
   useHotkeys([{ keys: 'mod+k', onPress: () => setPaletteOpen(true), allowInInputs: true }])
 
   const updateSettings = (patch: Partial<Settings>): void => {
@@ -71,7 +84,13 @@ function App(): React.JSX.Element {
     const goToAccounts = (): void => setPage('accounts')
     switch (page) {
       case 'overview':
-        return <OverviewPage onAddAccount={goToAccounts} />
+        return (
+          <OverviewPage
+            onAddAccount={goToAccounts}
+            onNavigate={setPage}
+            onSearch={() => setPaletteOpen(true)}
+          />
+        )
       case 'accounts':
         return <AccountsPage />
       case 'transactions':
@@ -115,7 +134,7 @@ function App(): React.JSX.Element {
         onOpenChange={setPaletteOpen}
         searchSource={paletteSource}
         onValueChange={(id) => {
-          setPage(id as PageKey)
+          setPage(id.startsWith('transactions:') ? 'transactions' : (id as PageKey))
           setPaletteOpen(false)
         }}
       />

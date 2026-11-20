@@ -34,7 +34,9 @@ export const accountSchema = z.object({
   parentId: id.nullable(),
   balanceMinor: minor,
   // Market value of holdings in the account, on top of the cash balance.
-  holdingsMinor: minor
+  holdingsMinor: minor,
+  // Cash plus holdings in the base currency at the latest stored rate; null when there is none.
+  baseMinor: minor.nullable()
 })
 export type Account = z.infer<typeof accountSchema>
 
@@ -102,7 +104,8 @@ export const transactionRowSchema = z.object({
   category: z.string(),
   accountLabel: z.string(),
   amountMinor: minor,
-  currency
+  currency,
+  kind: z.enum(['expense', 'income', 'transfer', 'opening', 'other'])
 })
 export type TransactionRow = z.infer<typeof transactionRowSchema>
 
@@ -115,6 +118,13 @@ export const monthActivitySchema = dayActivity.extend({
   previous: isoDate,
   next: isoDate,
   currency,
+  incomeCount: z.int(),
+  expenseCount: z.int(),
+  // Expenses not yet in a budget category.
+  uncategorizedMinor: minor,
+  uncategorizedCount: z.int(),
+  // Days in the month with an opening balance recorded.
+  openingDates: z.array(isoDate),
   days: z.array(dayActivity.extend({ date: isoDate }))
 })
 export type MonthActivity = z.infer<typeof monthActivitySchema>
@@ -130,9 +140,24 @@ const fxRate = z.object({ currency, rate: z.string(), date: isoDate })
 export const netWorthSchema = z.object({
   totals: z.array(currencyTotal),
   // Everything in the base currency, shown only when each other currency has a stored rate.
-  converted: z.object({ currency, netMinor: minor, rates: z.array(fxRate) }).nullable()
+  converted: z
+    .object({
+      currency,
+      netMinor: minor,
+      rates: z.array(fxRate),
+      // Each currency's net in the base currency, in the order of totals.
+      parts: z.array(z.object({ currency, netMinor: minor }))
+    })
+    .nullable()
 })
 export type NetWorth = z.infer<typeof netWorthSchema>
+
+// Base-currency net worth at the end of each day since the first transaction, through today.
+export const netWorthHistorySchema = z.object({
+  currency,
+  points: z.array(z.object({ date: isoDate, netMinor: minor }))
+})
+export type NetWorthHistory = z.infer<typeof netWorthHistorySchema>
 
 export const categorySchema = z.object({
   id,
@@ -306,7 +331,12 @@ export const ipcContract = {
   'transactions:create': { input: newTransactionSchema, output: z.null() },
   'transactions:month': { input: z.strictObject({ date: isoDate }), output: monthActivitySchema },
   'transactions:delete': { input: z.strictObject({ id }), output: z.null() },
+  'transactions:categorize': {
+    input: z.strictObject({ id, categoryId: id }),
+    output: z.null()
+  },
   'networth:get': { input: z.undefined(), output: netWorthSchema },
+  'networth:history': { input: z.undefined(), output: netWorthHistorySchema },
   'categories:list': { input: z.undefined(), output: z.array(categorySchema) },
   'categories:create': { input: z.strictObject({ name }), output: z.null() },
   'categories:delete': { input: z.strictObject({ id }), output: z.null() },

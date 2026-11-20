@@ -89,7 +89,10 @@ export function listTransactions(db: Db): TransactionRow[] {
     .prepare(
       `SELECT t.id, t.date, t.payee, t.memo, a.name AS accountName, s.amount_minor AS amountMinor, s.currency,
          COALESCE((SELECT c.name FROM splits cs JOIN categories c ON c.id = cs.category_id
-                   WHERE cs.transaction_id = t.id LIMIT 1), '') AS category
+                   WHERE cs.transaction_id = t.id LIMIT 1), '') AS category,
+         (SELECT cs.account_id FROM splits cs JOIN accounts ca ON ca.id = cs.account_id
+          WHERE cs.transaction_id = t.id AND cs.deleted_at IS NULL
+            AND ca.type NOT IN ('asset', 'liability') LIMIT 1) AS counterId
        FROM (SELECT * FROM transactions WHERE deleted_at IS NULL
              ORDER BY date DESC, id DESC LIMIT 500) t
        JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
@@ -102,13 +105,72 @@ export function listTransactions(db: Db): TransactionRow[] {
     accountName: string
     amountMinor: number
     currency: string
+    counterId: string | null
   })[]
   const byId = new Map<string, typeof rows>()
   for (const row of rows) byId.set(row.id, [...(byId.get(row.id) ?? []), row])
   return [...byId.values()].map((splits) => {
-    const { id, date, payee, memo, category } = splits[0]
-    return { id, date, payee, memo, category, ...describeTransaction(splits) }
+    const { id, date, payee, memo, category, counterId } = splits[0]
+    return {
+      id,
+      date,
+      payee,
+      memo,
+      category,
+      ...describeTransaction(splits),
+      kind: transactionKind(counterId)
+    }
   })
+}
+
+// What a transaction is, from the first split outside the user's own accounts.
+function transactionKind(counterId: string | null): TransactionRow['kind'] {
+  if (counterId === null || counterId === systemAccounts.exchange) return 'transfer'
+  if (counterId === systemAccounts.expense) return 'expense'
+  if (counterId === systemAccounts.income) return 'income'
+  if (counterId === systemAccounts.opening) return 'opening'
+  return 'other'
+}
+
+// Puts an expense in a budget category.
+export function categorizeTransaction(db: Db, id: string, categoryId: string): void {
+  db.transaction(() => {
+    const category = db
+      .prepare('SELECT 1 FROM categories WHERE id = ? AND deleted_at IS NULL')
+      .get(categoryId)
+    if (!category) throw new Error('Category not found')
+    const { changes } = db
+      .prepare(
+        `UPDATE splits SET category_id = ?, updated_at = ?
+         WHERE transaction_id = ? AND account_id = ? AND deleted_at IS NULL`
+      )
+      .run(categoryId, new Date().toISOString(), id, systemAccounts.expense)
+    if (changes === 0) throw new Error('Only an expense can be categorized')
+  })()
+}
+
+// Income minus spending per day in the base currency, for walking net worth back in time.
+export function dailyFlows(db: Db): Map<string, number> {
+  const rows = db
+    .prepare(
+      `SELECT t.date, -SUM(s.amount_minor) AS flowMinor
+       FROM transactions t
+       JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
+       WHERE t.deleted_at IS NULL AND s.account_id IN (?, ?) AND s.currency = ?
+       GROUP BY t.date`
+    )
+    .all(systemAccounts.income, systemAccounts.expense, baseCurrency) as {
+    date: string
+    flowMinor: number
+  }[]
+  return new Map(rows.map((r) => [r.date, r.flowMinor]))
+}
+
+export function firstTransactionDate(db: Db): string | null {
+  const row = db
+    .prepare('SELECT MIN(date) AS date FROM transactions WHERE deleted_at IS NULL')
+    .get() as { date: string | null }
+  return row.date
 }
 
 // Income and spending per day of the month containing `date`. Transfers, opening balances and
@@ -133,6 +195,41 @@ export function monthActivity(db: Db, date: string): MonthActivity {
     .all(baseCurrency, baseCurrency, start, end) as MonthActivity['days']
   const total = (pick: (day: MonthActivity['days'][number]) => number): number =>
     days.reduce((sum, day) => sum + pick(day), 0)
+  const counts = db
+    .prepare(
+      `SELECT
+         COUNT(DISTINCT CASE WHEN s.account_id = ? THEN t.id END) AS incomeCount,
+         COUNT(DISTINCT CASE WHEN s.account_id = ? THEN t.id END) AS expenseCount,
+         COUNT(DISTINCT CASE WHEN s.account_id = ? AND s.category_id IS NULL THEN t.id END)
+           AS uncategorizedCount,
+         COALESCE(SUM(CASE WHEN s.account_id = ? AND s.category_id IS NULL THEN s.amount_minor END), 0)
+           AS uncategorizedMinor
+       FROM transactions t
+       JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
+       WHERE t.deleted_at IS NULL AND s.currency = ? AND t.date BETWEEN ? AND ?`
+    )
+    .get(
+      systemAccounts.income,
+      systemAccounts.expense,
+      systemAccounts.expense,
+      systemAccounts.expense,
+      baseCurrency,
+      start,
+      end
+    ) as Pick<
+    MonthActivity,
+    'incomeCount' | 'expenseCount' | 'uncategorizedCount' | 'uncategorizedMinor'
+  >
+  const openingDates = (
+    db
+      .prepare(
+        `SELECT DISTINCT t.date FROM transactions t
+         JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
+         WHERE t.deleted_at IS NULL AND s.account_id = ? AND t.date BETWEEN ? AND ?
+         ORDER BY t.date`
+      )
+      .all(systemAccounts.opening, start, end) as { date: string }[]
+  ).map((r) => r.date)
   return {
     start,
     end,
@@ -142,6 +239,8 @@ export function monthActivity(db: Db, date: string): MonthActivity {
     incomeMinor: total((d) => d.incomeMinor),
     expenseMinor: total((d) => d.expenseMinor),
     count: total((d) => d.count),
+    ...counts,
+    openingDates,
     days
   }
 }

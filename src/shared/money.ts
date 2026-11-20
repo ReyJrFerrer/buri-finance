@@ -18,6 +18,13 @@ export function formatAmount(minor: number): string {
 export const formatMinor = (minor: number, currency: string): string =>
   `${minor < 0 ? '-' : ''}${currency} ${formatAmount(minor)}`
 
+const symbols: Record<string, string> = { PHP: '₱', USD: '$' }
+export const currencySymbol = (currency: string): string => symbols[currency] ?? `${currency} `
+
+// "₱1,234.56" and "−$5.00" for display; currencies without a symbol keep their code.
+export const formatMoney = (minor: number, currency: string): string =>
+  `${minor < 0 ? '−' : ''}${currencySymbol(currency)}${formatAmount(minor)}`
+
 // Share quantities are integers scaled by 1e8, so fractional shares stay exact.
 export function parseQuantityE8(text: string): number | null {
   const match = /^(\d+)(?:\.(\d{1,8}))?$/.exec(text.trim())

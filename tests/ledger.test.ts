@@ -14,12 +14,13 @@ import {
   incomeSplits,
   netWorth,
   openingSplits,
+  netWorthHistory,
   systemAccounts,
   transferSplits,
   type Split
 } from '../src/main/ledger/posting'
 import { ipcContract, type NewAccount } from '../src/shared/ipc'
-import { formatMinor, parseAmountToMinor } from '../src/shared/money'
+import { formatMinor, formatMoney, parseAmountToMinor } from '../src/shared/money'
 
 const php = { id: 'php-1', type: 'asset', currency: 'PHP' }
 const php2 = { id: 'php-2', type: 'asset', currency: 'PHP' }
@@ -44,6 +45,10 @@ describe('money', () => {
     expect(formatMinor(123450, 'PHP')).toBe('PHP 1,234.50')
     expect(formatMinor(-7, 'USD')).toBe('-USD 0.07')
     expect(formatMinor(0, 'PHP')).toBe('PHP 0.00')
+    expect(formatMoney(11793985, 'PHP')).toBe('₱117,939.85')
+    expect(formatMoney(-2500000, 'PHP')).toBe('−₱25,000.00')
+    expect(formatMoney(60292, 'USD')).toBe('$602.92')
+    expect(formatMoney(500, 'EUR')).toBe('EUR 5.00')
   })
 })
 
@@ -117,6 +122,29 @@ describe('posting rules', () => {
       converted: null
     })
     expect(netWorth([], [])).toEqual({ totals: [], converted: null })
+  })
+
+  it('walks net worth back day by day by undoing later income and spending', () => {
+    const flows = new Map([
+      ['2026-11-16', 6881900],
+      ['2026-11-18', -2500000]
+    ])
+    expect(netWorthHistory(11793985, flows, '2026-11-16', '2026-11-19')).toEqual([
+      { date: '2026-11-16', netMinor: 14293985 },
+      { date: '2026-11-17', netMinor: 14293985 },
+      { date: '2026-11-18', netMinor: 11793985 },
+      { date: '2026-11-19', netMinor: 11793985 }
+    ])
+    // Across a month end, and a single day
+    expect(netWorthHistory(100, new Map([['2026-12-01', 40]]), '2026-11-30', '2026-12-01')).toEqual(
+      [
+        { date: '2026-11-30', netMinor: 60 },
+        { date: '2026-12-01', netMinor: 100 }
+      ]
+    )
+    expect(netWorthHistory(100, new Map(), '2026-11-30', '2026-11-30')).toEqual([
+      { date: '2026-11-30', netMinor: 100 }
+    ])
   })
 
   it('describes a transfer by where the money went', () => {
