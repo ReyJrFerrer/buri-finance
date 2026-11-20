@@ -17,7 +17,7 @@ const isoDate = z.iso.date()
 const currency = z.string().regex(/^[A-Z]{3}$/)
 const minor = z.int()
 const positiveMinor = z.int().positive()
-const shortText = z.string().trim().max(200)
+export const transactionTextSchema = z.string().trim().max(200)
 const name = z.string().trim().min(1).max(100)
 const decimalString = z.string().refine(isDecimalString)
 const quantityE8 = z.int().positive()
@@ -68,8 +68,8 @@ export const newTransactionSchema = z.discriminatedUnion('kind', [
     accountId: id,
     amountMinor: positiveMinor,
     date: isoDate,
-    payee: shortText,
-    memo: shortText,
+    payee: transactionTextSchema,
+    memo: transactionTextSchema,
     categoryId: id.nullable()
   }),
   z.strictObject({
@@ -77,8 +77,8 @@ export const newTransactionSchema = z.discriminatedUnion('kind', [
     accountId: id,
     amountMinor: positiveMinor,
     date: isoDate,
-    payee: shortText,
-    memo: shortText,
+    payee: transactionTextSchema,
+    memo: transactionTextSchema,
     // Confirmed split of this income across budget categories, added to that month's budgets.
     allocations: z.array(categoryAmount)
   }),
@@ -90,7 +90,7 @@ export const newTransactionSchema = z.discriminatedUnion('kind', [
     // Amount that arrived, required when the two accounts use different currencies.
     receivedMinor: positiveMinor.optional(),
     date: isoDate,
-    memo: shortText
+    memo: transactionTextSchema
   })
 ])
 export type NewTransaction = z.infer<typeof newTransactionSchema>

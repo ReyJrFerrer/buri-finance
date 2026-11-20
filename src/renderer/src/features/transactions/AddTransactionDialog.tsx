@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { TextInput } from '@astryxdesign/core/TextInput'
+import { TextArea } from '@astryxdesign/core/TextArea'
 import { Selector } from '@astryxdesign/core/Selector'
 import { DateInput } from '@astryxdesign/core/DateInput'
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { Text } from '@astryxdesign/core/Text'
-import type { Account, Category } from '../../../../shared/ipc'
+import { transactionTextSchema, type Account, type Category } from '../../../../shared/ipc'
 import { formatAmount, formatMinor, parseAmountToMinor } from '../../../../shared/money'
 import { baseCurrency } from '../../../../shared/presets'
 import { FormDialog } from '../../components/FormDialog'
@@ -20,6 +21,7 @@ interface Props {
 
 const amountError = { type: 'error', message: 'Enter an amount like 1,234.50' } as const
 const accountError = { type: 'error', message: 'Choose an account' } as const
+const textError = { type: 'error', message: 'Use 200 characters or fewer' } as const
 
 export function AddTransactionDialog(props: Props): React.JSX.Element {
   const { accounts, categories, onClose, onSaved } = props
@@ -41,6 +43,8 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
   const account = accounts.find((a) => a.id === accountId)
   const toAccount = accounts.find((a) => a.id === toAccountId)
   const isTransfer = kind === 'transfer'
+  const payeeValid = transactionTextSchema.safeParse(payee).success
+  const memoValid = transactionTextSchema.safeParse(memo).success
   const isCrossCurrency =
     isTransfer && !!account && !!toAccount && account.currency !== toAccount.currency
   const amountMinor = parseAmountToMinor(amount) || null
@@ -54,6 +58,8 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
 
   const submit = async (): Promise<void> => {
     setSubmitted(true)
+    setError(undefined)
+    if ((!isTransfer && !payeeValid) || !memoValid) return
     if (!account || !amountMinor) return
     if (isTransfer && (!toAccount || (isCrossCurrency && !receivedMinor))) return
     if (allocations?.some((a) => a.amountMinor === null)) return
@@ -204,7 +210,9 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
         <TextInput
           label={kind === 'income' ? 'Received from' : 'Paid to'}
           value={payee}
-          onChange={setPayee}
+          // TextInput has no native maxlength prop, so clamp here.
+          onChange={(text) => setPayee(text.slice(0, 200))}
+          status={!payeeValid ? textError : undefined}
           isOptional
         />
       )}
@@ -218,7 +226,15 @@ export function AddTransactionDialog(props: Props): React.JSX.Element {
           isOptional
         />
       )}
-      <TextInput label="Note" value={memo} onChange={setMemo} isOptional />
+      <TextArea
+        label="Note"
+        value={memo}
+        onChange={setMemo}
+        rows={3}
+        htmlMaxLength={200}
+        status={!memoValid ? textError : undefined}
+        isOptional
+      />
       <DateInput label="Date" value={date} onChange={(value) => value && setDate(value)} />
     </FormDialog>
   )

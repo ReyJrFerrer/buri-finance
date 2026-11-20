@@ -4,6 +4,63 @@ import { join } from 'path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { Api } from '../src/preload'
 
+test('limits transaction text to 200 characters and displays a long memo once without overlap', async () => {
+  const app = await electron.launch({
+    args: ['.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'buri-text-'))}`]
+  })
+  try {
+    const page = await app.firstWindow()
+    await expect(page.getByRole('heading', { name: 'Your net worth starts here' })).toBeVisible()
+    const date = await page.evaluate(async () => {
+      const api = (window as unknown as { api: Api }).api
+      const date = new Date().toLocaleDateString('en-CA')
+      await api.accounts.create({
+        name: 'Wallet',
+        type: 'asset',
+        institution: null,
+        currency: 'PHP',
+        parentId: null,
+        openingBalanceMinor: 0,
+        openingDate: date
+      })
+      return date
+    })
+    await page
+      .getByRole('link', { name: 'Transactions', exact: true })
+      .or(page.getByRole('button', { name: 'Transactions', exact: true }))
+      .first()
+      .click()
+    await page.getByRole('button', { name: 'Add transaction' }).click()
+    const form = page.getByRole('dialog', { name: 'Add transaction' })
+    await form.getByLabel(/^Amount/).fill('2')
+    await expect(form).not.toContainText('Up to 200 characters')
+    await form.getByLabel('Paid to').fill('p'.repeat(201))
+    await expect(form.getByLabel('Paid to')).toHaveValue('p'.repeat(200))
+    await form.getByLabel('Paid to').fill('')
+    await form.getByLabel('Note').fill('m'.repeat(201))
+    await expect(form.getByLabel('Note')).toHaveValue('m'.repeat(200))
+    await form.getByRole('button', { name: 'Save transaction' }).click()
+    await expect(form).toBeHidden()
+    await page.getByRole('button', { name: `View ${'m'.repeat(200)} on ${date}` }).click()
+    const details = page.getByRole('dialog', { name: `Transactions on ${date}` })
+    await expect(details).toBeVisible()
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.setViewportSize({ width: 480, height: 700 })
+    await expect(details.getByText('m'.repeat(200), { exact: false })).toHaveCount(1)
+    const memo = details.getByText(`Memo: ${'m'.repeat(200)}`, { exact: true })
+    await expect(memo).toBeVisible()
+    const memoBox = await memo.boundingBox()
+    const amountBox = await details.getByText('-PHP 2.00', { exact: true }).boundingBox()
+    expect(memoBox).not.toBeNull()
+    expect(amountBox).not.toBeNull()
+    expect(amountBox!.y).toBeGreaterThanOrEqual(memoBox!.y + memoBox!.height)
+    expect(await memo.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await page.screenshot({ path: '/tmp/buri-long-memo-dark.png', animations: 'disabled' })
+  } finally {
+    await app.close()
+  }
+})
+
 test('pages history, navigates calendar months and updates markers after deletion', async () => {
   const app = await electron.launch({
     args: ['.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'buri-calendar-'))}`]
@@ -46,7 +103,7 @@ test('pages history, navigates calendar months and updates markers after deletio
       .first()
       .click()
     const table = page.getByRole('table')
-    await expect(table.getByRole('row')).toHaveCount(21) // header plus 20 transactions
+    await expect(table.getByRole('row')).toHaveCount(11) // header plus 10 transactions
     await expect(table).not.toContainText('Entry 0')
     await expect(
       page.getByRole('group', { name: `${dates.current}: 20 transactions`, exact: true })
@@ -57,7 +114,7 @@ test('pages history, navigates calendar months and updates markers after deletio
     const previewText = preview.locator('[data-color="negative"]')
     await expect(previewText).toHaveCount(1)
     expect(await previewText.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
-    await expect(day.getByRole('button')).toHaveCount(4) // three previews plus View all
+    await expect(day.getByRole('button')).toHaveCount(3)
     await preview.focus()
     await page.keyboard.press('Enter')
     const details = page.getByRole('dialog', { name: `Transactions on ${dates.current}` })
@@ -74,6 +131,7 @@ test('pages history, navigates calendar months and updates markers after deletio
     await expect(preview).toBeFocused()
     const pagination = page.getByRole('navigation', { name: 'Transaction pages' })
     await pagination.getByRole('button', { name: /next/i }).click()
+    await pagination.getByRole('button', { name: /next/i }).click()
     await expect(table.getByRole('row')).toHaveCount(2)
     await expect(table).toContainText('Entry 0')
     // Calendar counts cover all pages, not just the visible row.
@@ -86,8 +144,7 @@ test('pages history, navigates calendar months and updates markers after deletio
     ).toBeVisible()
     await page.getByRole('button', { name: /Delete Entry 0 on/ }).click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
-    await expect(table.getByRole('row')).toHaveCount(21)
-    await expect(pagination).toHaveCount(0)
+    await expect(table.getByRole('row')).toHaveCount(11) // last page clamps from 3 to 2
     await expect(
       page.getByRole('group', { name: `${dates.previous}: 0 transactions`, exact: true })
     ).toBeVisible()

@@ -15,7 +15,7 @@ import { moneyWidth } from '../../lib/table'
 import { useQuery } from '../../lib/useQuery'
 import { AddTransactionDialog } from './AddTransactionDialog'
 
-const pageSize = 20
+const pageSize = 10
 
 export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX.Element {
   const [accounts] = useQuery(window.api.accounts.list)
@@ -81,6 +81,9 @@ export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX
           actions={addButton}
         />
       )}
+      {hasAccounts && transactions && (
+        <TransactionCalendar transactions={transactions} weekStart={settings?.weekStart ?? 1} />
+      )}
       {!!transactions?.length && (
         <>
           <Table
@@ -100,9 +103,7 @@ export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX
           )}
         </>
       )}
-      {hasAccounts && transactions && (
-        <TransactionCalendar transactions={transactions} weekStart={settings?.weekStart ?? 1} />
-      )}
+
       {isAdding && accounts && categories && (
         <AddTransactionDialog
           accounts={accounts}
