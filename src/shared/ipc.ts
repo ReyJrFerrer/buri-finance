@@ -50,6 +50,14 @@ export const newAccountSchema = z.strictObject({
 })
 export type NewAccount = z.infer<typeof newAccountSchema>
 
+// Only labels are editable: type, currency and balances would rewrite the ledger.
+export const accountUpdateSchema = z.strictObject({
+  id,
+  name: newAccountSchema.shape.name,
+  institution: newAccountSchema.shape.institution
+})
+export type AccountUpdate = z.infer<typeof accountUpdateSchema>
+
 const categoryAmount = z.strictObject({ categoryId: id, amountMinor: positiveMinor })
 
 export const newTransactionSchema = z.discriminatedUnion('kind', [
@@ -292,6 +300,8 @@ export const ipcContract = {
   'settings:update': { input: settingsSchema.partial().strict(), output: settingsSchema },
   'accounts:list': { input: z.undefined(), output: z.array(accountSchema) },
   'accounts:create': { input: newAccountSchema, output: accountSchema },
+  'accounts:update': { input: accountUpdateSchema, output: z.null() },
+  'accounts:delete': { input: z.strictObject({ id }), output: z.null() },
   'transactions:list': { input: z.undefined(), output: z.array(transactionRowSchema) },
   'transactions:create': { input: newTransactionSchema, output: z.null() },
   'transactions:month': { input: z.strictObject({ date: isoDate }), output: monthActivitySchema },

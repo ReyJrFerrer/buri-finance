@@ -1,4 +1,4 @@
-import type { Account, NewAccount } from '../../shared/ipc'
+import type { Account, AccountUpdate, NewAccount } from '../../shared/ipc'
 import { openingSplits, type LedgerAccount } from '../ledger/posting'
 import type { Db } from './connection'
 import { uuidv7 } from './id'
@@ -52,4 +52,50 @@ export function createAccount(db: Db, input: NewAccount): Account {
   return withHoldings(db, [
     db.prepare(`${selectUserAccounts} AND a.id = ?`).get(id) as CashAccount
   ])[0]
+}
+
+export function updateAccount(db: Db, input: AccountUpdate): void {
+  const { changes } = db
+    .prepare(
+      `UPDATE accounts SET name = ?, institution = ?, updated_at = ?
+       WHERE id = ? AND deleted_at IS NULL AND type IN ('asset', 'liability')`
+    )
+    .run(input.name, input.institution, new Date().toISOString(), input.id)
+  if (changes === 0) throw new Error('Account not found')
+}
+
+// Soft-deletes the account and its own transactions (opening balance, income, expenses).
+// Refuses when other records depend on it, so no transfer or holding is left dangling.
+export function deleteAccount(db: Db, id: string): void {
+  const now = new Date().toISOString()
+  db.transaction(() => {
+    getLedgerAccount(db, id)
+    const count = (sql: string): number =>
+      (db.prepare(sql).get(id) as { n: number }).n > 0 ? 1 : 0
+    if (
+      count(
+        `SELECT COUNT(*) AS n FROM splits s
+         JOIN splits o ON o.transaction_id = s.transaction_id AND o.account_id <> s.account_id
+         JOIN accounts oa ON oa.id = o.account_id
+         WHERE s.account_id = ? AND s.deleted_at IS NULL AND o.deleted_at IS NULL
+           AND oa.type IN ('asset', 'liability')`
+      )
+    )
+      throw new Error('This account has transfers. Delete those transactions first.')
+    if (
+      count('SELECT COUNT(*) AS n FROM holdings_lots WHERE account_id = ? AND deleted_at IS NULL')
+    )
+      throw new Error('This account has holdings. Sell or remove them first.')
+    if (count('SELECT COUNT(*) AS n FROM goals WHERE account_id = ? AND deleted_at IS NULL'))
+      throw new Error('A goal is linked to this account. Delete the goal first.')
+    const where = `transaction_id IN (SELECT transaction_id FROM splits WHERE account_id = ?)`
+    db.prepare(
+      `UPDATE splits SET deleted_at = ?, updated_at = ? WHERE ${where} AND deleted_at IS NULL`
+    ).run(now, now, id)
+    db.prepare(
+      `UPDATE transactions SET deleted_at = ?, updated_at = ?
+       WHERE id IN (SELECT transaction_id FROM splits WHERE account_id = ?) AND deleted_at IS NULL`
+    ).run(now, now, id)
+    db.prepare('UPDATE accounts SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, id)
+  })()
 }

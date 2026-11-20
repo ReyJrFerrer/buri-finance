@@ -12,7 +12,9 @@ const api = {
   },
   accounts: {
     list: () => invoke('accounts:list'),
-    create: (input: IpcInput<'accounts:create'>) => invoke('accounts:create', input)
+    create: (input: IpcInput<'accounts:create'>) => invoke('accounts:create', input),
+    update: (input: IpcInput<'accounts:update'>) => invoke('accounts:update', input),
+    remove: (id: string) => invoke('accounts:delete', { id })
   },
   transactions: {
     list: () => invoke('transactions:list'),

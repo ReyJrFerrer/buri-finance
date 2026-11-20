@@ -2,7 +2,7 @@ import { mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
-import { createAccount, listAccounts } from '../src/main/db/accounts'
+import { createAccount, deleteAccount, listAccounts, updateAccount } from '../src/main/db/accounts'
 import { openDatabase, type Db } from '../src/main/db/connection'
 import { uuidv7 } from '../src/main/db/id'
 import { migrate, migrations } from '../src/main/db/migrate'
@@ -161,6 +161,30 @@ describe('ledger database', () => {
     expect(ipcContract['transactions:delete'].input.safeParse({ id }).success).toBe(true)
     const burst = Array.from({ length: 1000 }, uuidv7)
     expect([...burst].sort()).toEqual(burst)
+  })
+
+  it('renames, deletes with its own transactions, and refuses accounts with transfers', () => {
+    const db = open()
+    const a = createAccount(db, account({ openingBalanceMinor: 1000 }))
+    const b = createAccount(db, account({ name: 'GCash' }))
+    updateAccount(db, { id: a.id, name: 'Renamed', institution: null })
+    expect(listAccounts(db).map((x) => x.name)).toContain('Renamed')
+
+    createTransaction(db, {
+      date: '2026-02-01',
+      memo: '',
+      kind: 'transfer',
+      amountMinor: 100,
+      fromAccountId: a.id,
+      toAccountId: b.id
+    })
+    expect(() => deleteAccount(db, a.id)).toThrow(/transfers/)
+
+    const c = createAccount(db, account({ name: 'Solo', openingBalanceMinor: 500 }))
+    deleteAccount(db, c.id)
+    expect(listAccounts(db).map((x) => x.id)).not.toContain(c.id)
+    expect(ledgerIsBalanced(db)).toBe(true)
+    expect(() => deleteAccount(db, c.id)).toThrow()
   })
 
   it('creates accounts with opening balances and hides system accounts', () => {
