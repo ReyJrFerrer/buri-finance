@@ -27,8 +27,8 @@ export function listGoals(db: Db, today: string, period: 'weekly' | 'monthly'): 
     .all() as GoalRow[]
   const accounts = listAccounts(db)
   const categories = getBudget(db, 'monthly', today, 1).rows
-  return goals.map(({ accountId, categoryId, ...goal }) => {
-    const account = accounts.find((a) => a.id === accountId)
+  return goals.map(({ categoryId, ...goal }) => {
+    const account = accounts.find((a) => a.id === goal.accountId)
     const category = categories.find((c) => c.categoryId === categoryId)
     const savedMinor = account
       ? account.balanceMinor + account.holdingsMinor

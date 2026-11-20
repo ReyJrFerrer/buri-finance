@@ -14,7 +14,7 @@ const api = {
     list: () => invoke('accounts:list'),
     create: (input: IpcInput<'accounts:create'>) => invoke('accounts:create', input),
     update: (input: IpcInput<'accounts:update'>) => invoke('accounts:update', input),
-    remove: (id: string) => invoke('accounts:delete', { id })
+    remove: (id: string, deleteGoals = false) => invoke('accounts:delete', { id, deleteGoals })
   },
   transactions: {
     list: () => invoke('transactions:list'),

@@ -18,7 +18,7 @@ export function registerLedgerIpc(db: Db): void {
   handle('accounts:list', () => listAccounts(db))
   handle('accounts:create', (input) => createAccount(db, input))
   handle('accounts:update', (input) => (updateAccount(db, input), null))
-  handle('accounts:delete', ({ id }) => (deleteAccount(db, id), null))
+  handle('accounts:delete', ({ id, deleteGoals }) => (deleteAccount(db, id, deleteGoals), null))
   handle('transactions:list', () => listTransactions(db))
   handle('transactions:create', (input) => (createTransaction(db, input), null))
   handle('transactions:month', ({ date }) => monthActivity(db, date))

@@ -3,6 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it } from 'vitest'
 import { createAccount, deleteAccount, listAccounts, updateAccount } from '../src/main/db/accounts'
+import { createGoal, listGoals } from '../src/main/db/goals'
 import { openDatabase, type Db } from '../src/main/db/connection'
 import { uuidv7 } from '../src/main/db/id'
 import { migrate, migrations } from '../src/main/db/migrate'
@@ -213,6 +214,26 @@ describe('ledger database', () => {
     expect(listAccounts(db).map((x) => x.id)).not.toContain(c.id)
     expect(ledgerIsBalanced(db)).toBe(true)
     expect(() => deleteAccount(db, c.id)).toThrow()
+  })
+
+  it('deletes goals linked to an account only when asked to', () => {
+    const db = open()
+    const a = createAccount(db, account({ name: 'Savings', openingBalanceMinor: 1000 }))
+    const other = createAccount(db, account({ name: 'Wallet' }))
+    const goal = { targetMinor: 5000, targetDate: null, categoryId: null }
+    createGoal(db, { ...goal, name: 'Trip', accountId: a.id })
+    createGoal(db, { ...goal, name: 'Phone', accountId: other.id })
+    expect(listGoals(db, '2026-01-01', 'monthly').find((g) => g.name === 'Trip')?.accountId).toBe(
+      a.id
+    )
+
+    expect(() => deleteAccount(db, a.id)).toThrow('A goal is linked')
+    expect(listAccounts(db).map((x) => x.name)).toContain('Savings')
+
+    deleteAccount(db, a.id, true)
+    expect(listAccounts(db).map((x) => x.name)).toEqual(['Wallet'])
+    expect(listGoals(db, '2026-01-01', 'monthly').map((g) => g.name)).toEqual(['Phone'])
+    expect(ledgerIsBalanced(db)).toBe(true)
   })
 
   it('creates accounts with opening balances and hides system accounts', () => {

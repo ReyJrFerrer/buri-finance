@@ -4,19 +4,29 @@ import { Button } from '@astryxdesign/core/Button'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Icon } from '@astryxdesign/core/Icon'
 import { IconButton } from '@astryxdesign/core/IconButton'
+import { Pagination } from '@astryxdesign/core/Pagination'
 import { Table, pixel, type TableColumn } from '@astryxdesign/core/Table'
 import { TrashIcon } from '@heroicons/react/24/outline'
 import type { TransactionRow } from '../../../../shared/ipc'
 import { Amount } from '../../components/Amount'
 import { Page } from '../../components/Page'
+import { TransactionCalendar } from '../../components/TransactionCalendar'
 import { moneyWidth } from '../../lib/table'
 import { useQuery } from '../../lib/useQuery'
 import { AddTransactionDialog } from './AddTransactionDialog'
+
+const pageSize = 20
 
 export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX.Element {
   const [accounts] = useQuery(window.api.accounts.list)
   const [categories] = useQuery(window.api.categories.list)
   const [transactions, reload] = useQuery(window.api.transactions.list)
+  const [settings] = useQuery(window.api.settings.get)
+  const [requestedPage, setPage] = useState(1)
+  const page = Math.min(
+    requestedPage,
+    Math.max(1, Math.ceil((transactions?.length ?? 0) / pageSize))
+  )
   const [isAdding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string>()
   const addButton = (
@@ -72,7 +82,26 @@ export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX
         />
       )}
       {!!transactions?.length && (
-        <Table data={transactions} columns={columns} idKey="id" hasHover />
+        <>
+          <Table
+            data={transactions.slice((page - 1) * pageSize, page * pageSize)}
+            columns={columns}
+            idKey="id"
+            hasHover
+          />
+          {transactions.length > pageSize && (
+            <Pagination
+              label="Transaction pages"
+              page={page}
+              onChange={setPage}
+              totalItems={transactions.length}
+              pageSize={pageSize}
+            />
+          )}
+        </>
+      )}
+      {hasAccounts && transactions && (
+        <TransactionCalendar transactions={transactions} weekStart={settings?.weekStart ?? 1} />
       )}
       {isAdding && accounts && categories && (
         <AddTransactionDialog
@@ -81,6 +110,7 @@ export function TransactionsPage(props: { onAddAccount: () => void }): React.JSX
           onClose={() => setAdding(false)}
           onSaved={() => {
             setAdding(false)
+            setPage(1)
             reload()
           }}
         />

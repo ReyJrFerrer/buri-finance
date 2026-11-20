@@ -241,6 +241,7 @@ export const goalSchema = z.object({
   id,
   name: z.string(),
   linkLabel: z.string(),
+  accountId: id.nullable(), // the linked account; null when the goal follows a category
   currency,
   targetMinor: minor,
   targetDate: isoDate.nullable(),
@@ -326,7 +327,11 @@ export const ipcContract = {
   'accounts:list': { input: z.undefined(), output: z.array(accountSchema) },
   'accounts:create': { input: newAccountSchema, output: accountSchema },
   'accounts:update': { input: accountUpdateSchema, output: z.null() },
-  'accounts:delete': { input: z.strictObject({ id }), output: z.null() },
+  'accounts:delete': {
+    // deleteGoals: the user confirmed that goals linked to the account are deleted with it.
+    input: z.strictObject({ id, deleteGoals: z.boolean() }),
+    output: z.null()
+  },
   'transactions:list': { input: z.undefined(), output: z.array(transactionRowSchema) },
   'transactions:create': { input: newTransactionSchema, output: z.null() },
   'transactions:month': { input: z.strictObject({ date: isoDate }), output: monthActivitySchema },

@@ -83,7 +83,7 @@ export function createTransaction(db: Db, input: NewTransaction): string {
   })()
 }
 
-// shortcut: newest 500 only, no paging; add paging or a date filter when lists outgrow it.
+// shortcut: loads history for client-side paging; move paging to SQL if large ledgers become slow.
 export function listTransactions(db: Db): TransactionRow[] {
   const rows = db
     .prepare(
@@ -94,7 +94,7 @@ export function listTransactions(db: Db): TransactionRow[] {
           WHERE cs.transaction_id = t.id AND cs.deleted_at IS NULL
             AND ca.type NOT IN ('asset', 'liability') LIMIT 1) AS counterId
        FROM (SELECT * FROM transactions WHERE deleted_at IS NULL
-             ORDER BY date DESC, id DESC LIMIT 500) t
+             ORDER BY date DESC, id DESC) t
        JOIN splits s ON s.transaction_id = t.id AND s.deleted_at IS NULL
        JOIN accounts a ON a.id = s.account_id AND a.type IN ('asset', 'liability')
        ORDER BY t.date DESC, t.id DESC`

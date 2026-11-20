@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Banner } from '@astryxdesign/core/Banner'
 import { Button } from '@astryxdesign/core/Button'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
 import { Page } from '../../components/Page'
@@ -9,10 +10,17 @@ import { EditAccountDialog } from './EditAccountDialog'
 import type { Account } from '../../../../shared/ipc'
 
 export function AccountsPage(): React.JSX.Element {
-  const [accounts, reload] = useQuery(window.api.accounts.list)
+  const [accounts, reloadAccounts] = useQuery(window.api.accounts.list)
+  const [goals, reloadGoals] = useQuery(window.api.goals.list)
+  const [deleteError, setDeleteError] = useState<{ name: string; message: string }>()
   const [isAdding, setAdding] = useState(false)
   const [editing, setEditing] = useState<Account>()
   const addButton = <Button label="Add account" variant="primary" onClick={() => setAdding(true)} />
+  const reload = (): void => {
+    setDeleteError(undefined)
+    reloadAccounts()
+    reloadGoals()
+  }
 
   return (
     <Page title="Accounts" action={accounts?.length ? addButton : undefined}>
@@ -24,8 +32,23 @@ export function AccountsPage(): React.JSX.Element {
           actions={addButton}
         />
       )}
-      {!!accounts?.length && (
-        <AccountsTable accounts={accounts} onEdit={setEditing} onDeleted={reload} />
+      {deleteError && (
+        <Banner
+          status="error"
+          title={`${deleteError.name} could not be deleted`}
+          description={deleteError.message}
+          isDismissable
+          onDismiss={() => setDeleteError(undefined)}
+        />
+      )}
+      {!!accounts?.length && goals && (
+        <AccountsTable
+          accounts={accounts}
+          goals={goals}
+          onEdit={setEditing}
+          onDeleted={reload}
+          onDeleteError={(a, message) => setDeleteError({ name: a.name, message })}
+        />
       )}
       {isAdding && (
         <AddAccountDialog

@@ -1,3 +1,3 @@
 <!-- ASTRYX:START -->
-@./AGENTS.md
+@./DESIGN-AGENTS.md
 <!-- ASTRYX:END -->

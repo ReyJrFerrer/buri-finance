@@ -75,8 +75,9 @@ export function updateAccount(db: Db, input: AccountUpdate): void {
 }
 
 // Soft-deletes the account and its own transactions (opening balance, income, expenses).
-// Refuses when other records depend on it, so no transfer or holding is left dangling.
-export function deleteAccount(db: Db, id: string): void {
+// Refuses when other records depend on it, so no transfer or holding is left dangling. Goals
+// linked to the account go with it only when `deleteGoals` says the user agreed to that.
+export function deleteAccount(db: Db, id: string, deleteGoals = false): void {
   const now = new Date().toISOString()
   db.transaction(() => {
     getLedgerAccount(db, id)
@@ -91,13 +92,21 @@ export function deleteAccount(db: Db, id: string): void {
            AND oa.type IN ('asset', 'liability')`
       )
     )
-      throw new Error('This account has transfers. Delete those transactions first.')
+      throw new Error('This account has transfers. Delete them on the Transactions page first.')
     if (
       count('SELECT COUNT(*) AS n FROM holdings_lots WHERE account_id = ? AND deleted_at IS NULL')
     )
-      throw new Error('This account has holdings. Sell or remove them first.')
-    if (count('SELECT COUNT(*) AS n FROM goals WHERE account_id = ? AND deleted_at IS NULL'))
+      throw new Error(
+        'This account has holdings. Sell or remove them on the Investments page first.'
+      )
+    if (
+      !deleteGoals &&
+      count('SELECT COUNT(*) AS n FROM goals WHERE account_id = ? AND deleted_at IS NULL')
+    )
       throw new Error('A goal is linked to this account. Delete the goal first.')
+    db.prepare(
+      'UPDATE goals SET deleted_at = ?, updated_at = ? WHERE account_id = ? AND deleted_at IS NULL'
+    ).run(now, now, id)
     const where = `transaction_id IN (SELECT transaction_id FROM splits WHERE account_id = ?)`
     db.prepare(
       `UPDATE splits SET deleted_at = ?, updated_at = ? WHERE ${where} AND deleted_at IS NULL`
