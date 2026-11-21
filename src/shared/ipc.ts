@@ -401,7 +401,36 @@ export const ipcContract = {
     input: z.strictObject({ currency, rate: decimalString, date: isoDate }),
     output: z.null()
   },
-  'fx:refresh': { input: z.undefined(), output: z.null() }
+  'fx:refresh': { input: z.undefined(), output: z.null() },
+  'prices:status': {
+    input: z.undefined(),
+    output: z.object({
+      hasKey: z.boolean(),
+      symbolCount: z.int().nonnegative(),
+      listUpdated: isoDate.nullable()
+    })
+  },
+  'prices:setKey': {
+    input: z.strictObject({
+      key: z
+        .string()
+        .trim()
+        .regex(/^[A-Za-z0-9]{8,64}$/)
+        .nullable()
+    }),
+    // How many US symbols the new key downloaded; 0 when the key is removed.
+    output: z.int().nonnegative()
+  },
+  'prices:search': {
+    input: z.strictObject({ query: z.string().trim().min(1).max(50) }),
+    output: z.array(
+      z.object({ symbol: z.string(), name: z.string(), kind: z.enum(['Stock', 'ETF']) })
+    )
+  },
+  'prices:refresh': {
+    input: z.undefined(),
+    output: z.object({ updated: z.int().nonnegative(), failed: z.array(z.string()) })
+  }
 } as const
 
 export type Channel = keyof typeof ipcContract

@@ -128,7 +128,11 @@ test('budgets, goals and investments work end to end', async () => {
   await expect(page.getByRole('heading', { name: 'No holdings yet' })).toBeVisible()
   await form('Add holding', 'Save holding', async () => {
     await choose('Account', 'DragonFi')
-    await dialog.getByLabel('Symbol').fill('bdo')
+    // Philippine names come from the built-in list, without a price service.
+    await dialog.getByRole('combobox', { name: 'Find investment' }).fill('unibank')
+    await page.getByRole('option', { name: /BDO · BDO Unibank · PH/ }).click()
+    await expect(dialog.getByLabel('Symbol')).toHaveValue('BDO')
+    await expect(dialog.getByLabel('Company or fund name')).toHaveValue('BDO Unibank')
     await dialog.getByLabel('Quantity', { exact: true }).fill('100')
     await dialog.getByLabel(/Price per share/).fill('128.50')
   })
@@ -157,6 +161,12 @@ test('budgets, goals and investments work end to end', async () => {
     dialog.getByLabel('PHP for 1 USD').fill('58.25')
   )
   await expect(row(/1 USD = PHP 58\.25/)).toBeVisible()
+  await page.getByRole('button', { name: 'Turn on automatic prices' }).click()
+  await dialog.getByLabel('Finnhub API key').fill('not a key')
+  await dialog.getByRole('button', { name: 'Save key' }).click()
+  await expect(dialog.getByText('Paste the key exactly as Finnhub shows it').first()).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
   await shot('11-investments')
 
   // Overview. PHP: GoTyme 148,749.50 + DragonFi cash 50,000 - 12,850 + 6,000 + holdings 9,000

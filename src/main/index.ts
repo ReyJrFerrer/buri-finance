@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, dialog, safeStorage } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { loadOrCreateKey, openDatabase, type Db } from './db/connection'
+import { loadOrCreateKey, openDatabase, secretFile, type Db } from './db/connection'
 import { migrate, migrations } from './db/migrate'
 import { registerBudgetIpc } from './ipc/budgets'
 import { registerInvestmentIpc } from './ipc/investments'
@@ -82,7 +82,11 @@ app.whenReady().then(() => {
   registerSettingsIpc(db)
   registerLedgerIpc(db)
   registerBudgetIpc(db)
-  registerInvestmentIpc(db)
+  registerInvestmentIpc(
+    db,
+    secretFile(join(app.getPath('userData'), 'finnhub.key'), safeStorage),
+    join(app.getPath('userData'), 'us-symbols.json')
+  )
   createWindow()
   startReminders(db)
 

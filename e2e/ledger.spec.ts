@@ -50,6 +50,7 @@ test('accounts, transactions and net worth work end to end and survive a restart
     'goals',
     'investments',
     'netWorth',
+    'prices',
     'rules',
     'settings',
     'transactions'

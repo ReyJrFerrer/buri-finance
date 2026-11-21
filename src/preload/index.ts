@@ -60,6 +60,12 @@ const api = {
     setPrice: (input: IpcInput<'prices:set'>) => invoke('prices:set', input),
     setFxRate: (input: IpcInput<'fx:set'>) => invoke('fx:set', input),
     refreshFx: () => invoke('fx:refresh')
+  },
+  prices: {
+    status: () => invoke('prices:status'),
+    setKey: (key: string | null) => invoke('prices:setKey', { key }),
+    search: (query: string) => invoke('prices:search', { query }),
+    refresh: () => invoke('prices:refresh')
   }
 }
 

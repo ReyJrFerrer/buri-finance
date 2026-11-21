@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { randomBytes } from 'crypto'
 
 export type Db = Database.Database
@@ -16,7 +16,7 @@ export function openDatabase(file: string, keyHex: string): Db {
   return db
 }
 
-interface KeyWrapper {
+export interface KeyWrapper {
   encryptString(plain: string): Buffer
   decryptString(encrypted: Buffer): string
 }
@@ -29,4 +29,18 @@ export function loadOrCreateKey(keyFile: string, dbFile: string, wrapper: KeyWra
   const key = randomBytes(32).toString('hex')
   writeFileSync(keyFile, wrapper.encryptString(key), { mode: 0o600 })
   return key
+}
+
+// An API key wrapped the same way as the database key, in its own file; null when none is saved.
+export function secretFile(
+  file: string,
+  wrapper: KeyWrapper
+): { get(): string | null; set(value: string | null): void } {
+  return {
+    get: () => (existsSync(file) ? wrapper.decryptString(readFileSync(file)) : null),
+    set: (value) =>
+      value === null
+        ? rmSync(file, { force: true })
+        : writeFileSync(file, wrapper.encryptString(value), { mode: 0o600 })
+  }
 }

@@ -167,6 +167,7 @@ Finish and test each step before starting the next.
 
 ## Open decisions (ask the owner before choosing)
 
-- Market data provider for US prices, and whether any usable source exists for Philippine stock prices; until decided, prices are entered manually. (FX rates: decided, Frankfurter, fetched automatically; see `src/main/prices/fx.ts`.)
+Decided: US stock/ETF prices come from Finnhub (user-supplied free key, stored with `safeStorage`; see `src/main/prices/finnhub.ts`). Philippine stocks and funds stay manual, with a built-in name list in `src/shared/presets.ts`. FX rates come from Frankfurter (`src/main/prices/fx.ts`).
+
 - Whether sync is for the owner's own devices only or also for sharing a budget with other people (the second needs per-budget permissions).
 - App name, bundle id, and icon.

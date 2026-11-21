@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Banner } from '@astryxdesign/core/Banner'
 import { Button } from '@astryxdesign/core/Button'
 import { EmptyState } from '@astryxdesign/core/EmptyState'
@@ -13,10 +13,10 @@ import { DeleteButton } from '../../components/DeleteButton'
 import { Page } from '../../components/Page'
 import { Section } from '../../components/Section'
 import { moneyWidth, nameWidth } from '../../lib/table'
-import { useFxRefresh, useQuery } from '../../lib/useQuery'
-import { BuyDialog, FxDialog, PriceDialog, SellDialog } from './InvestmentDialogs'
+import { errorMessage, useFxRefresh, useQuery } from '../../lib/useQuery'
+import { BuyDialog, FxDialog, PriceDialog, PriceKeyDialog, SellDialog } from './InvestmentDialogs'
 
-type Dialog = 'buy' | 'fx' | { sell: Holding } | { price: Security }
+type Dialog = 'buy' | 'fx' | 'key' | { sell: Holding } | { price: Security }
 type FxRate = Investments['fxRates'][number]
 
 const number = (text: string): React.JSX.Element => (
@@ -29,12 +29,36 @@ export function InvestmentsPage(props: { onAddAccount: () => void }): React.JSX.
   const [accounts] = useQuery(window.api.accounts.list)
   const [data, reloadData] = useQuery(window.api.investments.get)
   const fxError = useFxRefresh(reloadData)
+  const [priceKey, reloadKey] = useQuery(window.api.prices.status)
+  const hasKey = !!priceKey?.hasKey
   const [dialog, setDialog] = useState<Dialog>()
+  const [priceStatus, setPriceStatus] = useState<{ error?: string; failed?: string[] }>()
+  const [isRefreshing, setRefreshing] = useState(false)
   const close = (): void => setDialog(undefined)
   const reload = (): void => {
     close()
     reloadData()
   }
+  const fetchPrices = useCallback(
+    () =>
+      window.api.prices
+        .refresh()
+        .then(
+          ({ failed }) => setPriceStatus({ failed }),
+          (e: unknown) => setPriceStatus({ error: errorMessage(e) })
+        )
+        .then(reloadData),
+    [reloadData]
+  )
+  const refreshPrices = async (): Promise<void> => {
+    setRefreshing(true)
+    await fetchPrices()
+    setRefreshing(false)
+  }
+  // US prices update when the page opens, like exchange rates.
+  useEffect(() => {
+    if (hasKey) fetchPrices()
+  }, [hasKey, fetchPrices])
   const addButton = (
     <Button label="Add holding" variant="primary" onClick={() => setDialog('buy')} />
   )
@@ -165,7 +189,7 @@ export function InvestmentsPage(props: { onAddAccount: () => void }): React.JSX.
           title="No holdings yet"
           description={
             hasAssetAccount
-              ? 'Add the shares you hold in DragonFi, GoTrade or any other broker account. Prices are entered by hand.'
+              ? 'Add the shares and funds you hold in DragonFi, GoTrade or any other account. US prices can update automatically; Philippine prices are entered by hand.'
               : 'Holdings live in a broker account, so start by adding one.'
           }
           headingLevel={2}
@@ -184,8 +208,42 @@ export function InvestmentsPage(props: { onAddAccount: () => void }): React.JSX.
       {!!data?.securities.length && (
         <Section
           title="Prices"
-          description="Holdings are valued at the latest price you have entered for each security."
+          description={
+            hasKey
+              ? 'Holdings are valued at the latest price for each security. US (USD) prices update from Finnhub when this page opens; Philippine stocks and funds are entered by hand.'
+              : 'Holdings are valued at the latest price you have entered for each security. Turn on automatic prices to update US stocks and ETFs from Finnhub.'
+          }
+          action={
+            <HStack gap={2}>
+              {hasKey && (
+                <Button
+                  label={isRefreshing ? 'Updating prices…' : 'Update prices'}
+                  isDisabled={isRefreshing}
+                  onClick={refreshPrices}
+                />
+              )}
+              <Button
+                label={hasKey ? 'Price lookup settings' : 'Turn on automatic prices'}
+                variant={hasKey ? 'ghost' : 'secondary'}
+                onClick={() => setDialog('key')}
+              />
+            </HStack>
+          }
         >
+          {priceStatus?.error && (
+            <Banner
+              status="error"
+              title="Prices could not be updated"
+              description={`${priceStatus.error} Showing the last saved prices.`}
+            />
+          )}
+          {!!priceStatus?.failed?.length && (
+            <Banner
+              status="warning"
+              title="Some prices were not found"
+              description={`Finnhub has no price for ${priceStatus.failed.join(', ')}. Check the symbol, or update the price by hand.`}
+            />
+          )}
           <Table data={data.securities} columns={priceColumns} idKey="id" />
         </Section>
       )}
@@ -209,6 +267,17 @@ export function InvestmentsPage(props: { onAddAccount: () => void }): React.JSX.
       )}
       {dialog === 'buy' && accounts && (
         <BuyDialog accounts={accounts} onClose={close} onSaved={reload} />
+      )}
+      {dialog === 'key' && (
+        <PriceKeyDialog
+          status={priceKey ?? { hasKey: false, symbolCount: 0, listUpdated: null }}
+          onClose={close}
+          onSaved={() => {
+            close()
+            setPriceStatus(undefined)
+            reloadKey()
+          }}
+        />
       )}
       {dialog === 'fx' && <FxDialog currencies={currencies} onClose={close} onSaved={reload} />}
       {typeof dialog === 'object' && 'sell' in dialog && (
