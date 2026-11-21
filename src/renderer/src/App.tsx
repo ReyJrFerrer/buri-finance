@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Theme } from '@astryxdesign/core/theme'
 import { AppShell } from '@astryxdesign/core/AppShell'
 import { Icon } from '@astryxdesign/core/Icon'
 import { NavIcon } from '@astryxdesign/core/NavIcon'
-import { CommandPalette } from '@astryxdesign/core/CommandPalette'
-import { createStaticSource } from '@astryxdesign/core/Typeahead'
-import { useHotkeys } from '@astryxdesign/core/hooks'
+import { ToastViewport } from '@astryxdesign/core/Toast'
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from '@astryxdesign/core/SideNav'
 import {
   ArrowsRightLeftIcon,
@@ -18,8 +16,8 @@ import {
   WalletIcon
 } from '@heroicons/react/24/outline'
 import { themes, defaultThemeSlug } from '../../astryx-themes'
-import type { Settings, TransactionRow } from '../../shared/ipc'
-import { formatMoney } from '../../shared/money'
+import type { Settings } from '../../shared/ipc'
+import { AppCommandPalette } from './components/AppCommandPalette'
 import { AccountsPage } from './features/accounts/AccountsPage'
 import { BudgetsPage } from './features/budgets/BudgetsPage'
 import { GoalsPage } from './features/goals/GoalsPage'
@@ -44,27 +42,12 @@ function App(): React.JSX.Element {
   const [page, setPage] = useState<PageKey>('overview')
   const [settings, setSettings] = useState<Settings>()
   const [isPaletteOpen, setPaletteOpen] = useState(false)
-  const [transactions, setTransactions] = useState<TransactionRow[]>([])
-  // Pages first, then transactions; picking a transaction opens the Transactions page.
-  const paletteSource = useMemo(
-    () =>
-      createStaticSource([
-        ...pageKeys.map((key) => ({ id: key, label: pages[key].label })),
-        ...transactions.map((t) => ({
-          id: `transactions:${t.id}`,
-          label: `${t.payee || t.memo || 'Transaction'} · ${t.date} · ${formatMoney(t.amountMinor, t.currency)}`
-        }))
-      ]),
-    [transactions]
-  )
+  // Bumped when the palette adds data, remounting the page so it reloads.
+  const [dataVersion, setDataVersion] = useState(0)
 
   useEffect(() => {
     window.api.settings.get().then(setSettings)
   }, [])
-  useEffect(() => {
-    if (isPaletteOpen) window.api.transactions.list().then(setTransactions)
-  }, [isPaletteOpen])
-  useHotkeys([{ keys: 'mod+k', onPress: () => setPaletteOpen(true), allowInInputs: true }])
 
   const updateSettings = (patch: Partial<Settings>): void => {
     window.api.settings.update(patch).then(setSettings)
@@ -126,18 +109,18 @@ function App(): React.JSX.Element {
           </SideNav>
         }
       >
-        {content()}
+        <Fragment key={dataVersion}>{content()}</Fragment>
       </AppShell>
-      <CommandPalette
-        label="Go to page"
-        isOpen={isPaletteOpen}
-        onOpenChange={setPaletteOpen}
-        searchSource={paletteSource}
-        onValueChange={(id) => {
-          setPage(id.startsWith('transactions:') ? 'transactions' : (id as PageKey))
-          setPaletteOpen(false)
-        }}
-      />
+      <ToastViewport>
+        <AppCommandPalette
+          isOpen={isPaletteOpen}
+          onOpenChange={setPaletteOpen}
+          pages={pageKeys.map((key) => ({ key, label: pages[key].label }))}
+          onNavigate={(key) => setPage(key as PageKey)}
+          onThemeChange={(themeMode) => updateSettings({ themeMode })}
+          onDataChanged={() => setDataVersion((v) => v + 1)}
+        />
+      </ToastViewport>
     </Theme>
   )
 }
