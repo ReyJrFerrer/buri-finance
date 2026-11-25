@@ -1,13 +1,10 @@
 import { Fragment, useEffect, useState } from 'react'
 import { Theme } from '@astryxdesign/core/theme'
 import { AppShell } from '@astryxdesign/core/AppShell'
-import { Icon } from '@astryxdesign/core/Icon'
-import { NavIcon } from '@astryxdesign/core/NavIcon'
 import { ToastViewport } from '@astryxdesign/core/Toast'
 import { SideNav, SideNavHeading, SideNavItem, SideNavSection } from '@astryxdesign/core/SideNav'
 import {
   ArrowsRightLeftIcon,
-  BanknotesIcon,
   ChartPieIcon,
   Cog6ToothIcon,
   FlagIcon,
@@ -18,6 +15,7 @@ import {
 import { themes, defaultThemeSlug } from '../../astryx-themes'
 import type { Settings } from '../../shared/ipc'
 import { AppCommandPalette } from './components/AppCommandPalette'
+import { AppLogo } from './components/AppLogo'
 import { AccountsPage } from './features/accounts/AccountsPage'
 import { BudgetsPage } from './features/budgets/BudgetsPage'
 import { GoalsPage } from './features/goals/GoalsPage'
@@ -94,14 +92,7 @@ function App(): React.JSX.Element {
       <AppShell
         contentPadding={6}
         sideNav={
-          <SideNav
-            header={
-              <SideNavHeading
-                icon={<NavIcon icon={<Icon icon={BanknotesIcon} size="sm" />} />}
-                heading="Buri Finance"
-              />
-            }
-          >
+          <SideNav header={<SideNavHeading icon={<AppLogo />} heading="Buri Finance" />}>
             <SideNavSection title="Main" isHeaderHidden>
               {pageKeys.filter((key) => key !== 'settings').map(navItem)}
             </SideNavSection>
