@@ -1,6 +1,8 @@
-# buri-finance
+<img src="build/icon.png" alt="Buri Finance icon" width="128" />
 
-An Electron application with React and TypeScript
+# Buri Finance
+
+A local-first personal finance desktop app for macOS and Windows: budgeting, double-entry bookkeeping, investment tracking, and net-worth tracking. Your data stays on your machine.
 
 ## Recommended IDE Setup
 
@@ -40,8 +42,8 @@ Electron architecture (arm64 on Apple Silicon). For another architecture, use
 the matching distribution instead.
 
 Do not copy the macOS `electronDist` override to Windows or Linux builds on a Mac:
-the installed distribution contains `Electron.app`, not `electron.exe` or a Linux
-executable. Those commands download the target platform's Electron distribution.
+the installed distribution is the macOS runtime, which cannot be packaged for Windows
+or Linux. Those commands download the target platform's Electron distribution.
 For a usable Windows installer, build on Windows after a fresh `npm ci`: the app
 includes native SQLite code and `npmRebuild: false`, so a Mac installation's native
 module cannot be reused on Windows. Select the target explicitly when needed with

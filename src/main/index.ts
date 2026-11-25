@@ -62,8 +62,9 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  // Windows uses this id to group the taskbar icon and show notifications as Buri Finance.
+  // It must match appId in electron-builder.yml.
+  electronApp.setAppUserModelId('com.burifinance.app')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
